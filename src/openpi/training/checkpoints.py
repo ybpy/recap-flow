@@ -4,6 +4,7 @@ import asyncio
 import concurrent.futures as futures
 import dataclasses
 import logging
+import json
 from typing import Protocol
 
 from etils import epath
@@ -68,7 +69,11 @@ def save_state(
     data_loader: _data_loader.DataLoader,
     step: int,
 ):
+    loader_state = data_loader.state_dict() if hasattr(data_loader, "state_dict") else None
+
     def save_assets(directory: epath.Path):
+        if loader_state is not None:
+            (directory / "e0-state.json").write_text(json.dumps(loader_state, indent=2))
         # Save the normalization stats.
         data_config = data_loader.data_config()
         norm_stats = data_config.norm_stats

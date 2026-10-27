@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "name",
+    "stage",
+    "seed",
+    "branch",
+    "round",
+    "dependencies",
+    "image",
+    "code_commit",
+    "environment_id",
+    "resources",
+    "mounts",
+    "environment",
+    "manifest",
+    "launch_command",
+    "outputs",
+    "acceptance",
+    "resume_command"
+  ],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "stage": {
+      "type": "string"
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "branch": {
+      "type": "string"
+    },
+    "round": {
+      "type": "integer"
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "image": {
+      "type": "object",
+      "required": [
+        "uri",
+        "digest"
+      ],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:"
+        }
+      }
+    },
+    "code_commit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "environment_id": {
+      "type": "string"
+    },
+    "resources": {
+      "type": "object",
+      "required": [
+        "gpu_type",
+        "gpu_count",
+        "nodes",
+        "cpu_cores",
+        "memory_gib",
+        "estimated_minutes"
+      ]
+    },
+    "mounts": {
+      "type": "array"
+    },
+    "environment": {
+      "type": "object"
+    },
+    "manifest": {
+      "type": "object"
+    },
+    "launch_command": {
+      "type": "string"
+    },
+    "outputs": {
+      "type": "object"
+    },
+    "acceptance": {
+      "type": "array"
+    },
+    "resume_command": {
+      "type": "string"
+    }
+  }
+}

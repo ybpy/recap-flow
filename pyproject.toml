@@ -122,6 +122,13 @@ unfixable = [
     "B905", # Fix defaults to strict=False, which is not what we want.
 ]
 
+# E0 keeps simulator commands free of training imports and initializes GPU libraries
+# only after platform selection (also avoids inherited GPU contexts in data workers).
+[tool.ruff.lint.extend-per-file-ignores]
+"src/openpi/e0/*.py" = ["PLC0415"]
+"scripts/e0/*.py" = ["PLC0415"]
+"tests/e0/*.py" = ["PLC0415"]
+
 [tool.ruff.lint.isort]
 force-single-line = true
 force-sort-within-sections = true

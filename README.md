@@ -1,3 +1,5 @@
+> **RECAP-Flow E0 implementation**: start with [the E0 runbook](docs/e0/OPERATIONS.rst) and [image / A800 handoff](docs/e0/IMAGE_HANDOFF.rst). The scientific protocol is in [e0/protocol.json](e0/protocol.json). Entry: `bash scripts/e0.sh`. TIONE tasks are created and launched manually; formal budgets await seed-42 pilots.
+
 # Usage of PiStar
 
 ## Base Environment Setup

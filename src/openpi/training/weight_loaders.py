@@ -308,11 +308,14 @@ class ValueModelWeightLoader(WeightLoader):
     """
 
     gemma_variant: str = "gemma3-270m"
+    siglip_path: str | None = None
+    gemma_checkpoint_dir: str | None = None
 
     def load(self, params: at.Params) -> at.Params:
         logger.info(console.info("加载 SigLIP 权重 (from local checkpoint)..."))
-        #siglip_path = "/data/train_dataset/checkpoint/siglip2-so400m-patch14-384-jax/siglip2_so400m14_224.npz"
-        siglip_path = "/public/home/wangsenbao_it/litianheng/checkpoint/siglip2-so400m-patch14-224-jax/siglip2_so400m14_224.npz"
+        if not self.siglip_path or not self.gemma_checkpoint_dir:
+            raise ValueError("Explicit SigLIP and Gemma checkpoint paths are required")
+        siglip_path = self.siglip_path
         siglip_params = None
         if bv_utils is not None:
             try:
@@ -336,8 +339,7 @@ class ValueModelWeightLoader(WeightLoader):
             _summarize_param_match("SigLIP", siglip_params, params["img"])
 
         logger.info(console.info("加载 Gemma 3 270M 权重 (from local Orbax checkpoint)..."))
-        gemma_checkpoint_dir = "/public/home/wangsenbao_it/litianheng/checkpoint/gemma-3-270m"
-        #gemma_checkpoint_dir = "/data/train_dataset/checkpoint/gemma-3-270m"
+        gemma_checkpoint_dir = self.gemma_checkpoint_dir
 
         # 使用 Gemma 官方 ckpts loader（优先），必要时回退 Orbax
         try:
@@ -383,6 +385,7 @@ class ValueModelWeightLoader(WeightLoader):
             params,
             missing_regex=".*(value_head|img_projection|cross_att).*",
             log_prefix="ValueModel",
+            strict=True,
         )
 
 
@@ -392,6 +395,7 @@ def _merge_params(
     *,
     missing_regex: str,
     log_prefix: str | None = None,
+    strict: bool = False,
 ) -> at.Params:
     """Merges the loaded parameters with the reference parameters.
 
@@ -460,6 +464,8 @@ def _merge_params(
                 f"{log_prefix} shape mismatch: {len(shape_mismatch)} (sample: {sample})"
             )
         )
+    if strict and missing:
+        raise ValueError(f"{log_prefix}: required pretrained parameters missing or mismatched: {sorted(missing)[:10]}")
     if dtype_cast:
         logger.info(console.info(f"{log_prefix} dtype-cast params: {dtype_cast}"))
 

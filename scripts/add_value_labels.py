@@ -1,6 +1,6 @@
 """为 LeRobot 数据集添加归一化价值标签。
 
-价值计算公式：value_label = -(T - t) / T
+价值计算公式：value_label = -(T - 1 - t) / T
 - t: 当前帧索引
 - T: episode 总帧数
 - value_label 范围: [-1, 0]
@@ -15,6 +15,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 from tqdm import tqdm
 
 from openpi.shared import console
@@ -34,10 +36,8 @@ def compute_value_labels(episode_length: int) -> np.ndarray:
     Returns:
         value_labels: [T], 范围 [-1, 0]
     """
-    T = episode_length
-    t = np.arange(T)
-    value_normalized = -(T - t) / T
-    return value_normalized.astype(np.float32)
+    from openpi_client.e0.protocol import trajectory_labels
+    return trajectory_labels(episode_length, success=True)["value_label"]
 
 
 def _episode_row_slices(df: pd.DataFrame) -> list[slice]:
@@ -56,7 +56,10 @@ def _episode_row_slices(df: pd.DataFrame) -> list[slice]:
 
 def add_value_to_parquet(parquet_path: Path) -> int:
     """为单个 parquet 文件添加 value_label 列。"""
-    df = pd.read_parquet(parquet_path)
+    table = pq.read_table(parquet_path)
+    df = table.select([name for name in ("episode_index",) if name in table.column_names]).to_pandas()
+    if not len(df):
+        df = pd.DataFrame(index=range(len(table)))
 
     if VALUE_LABEL_COLUMN in df.columns:
         print(console.warn(f"覆盖 {parquet_path.name}: 重写已有 {VALUE_LABEL_COLUMN} 列"))
@@ -69,8 +72,20 @@ def add_value_to_parquet(parquet_path: Path) -> int:
         episode_length = row_slice.stop - row_slice.start
         value_labels[row_slice] = compute_value_labels(episode_length)
 
-    df[VALUE_LABEL_COLUMN] = value_labels
-    df.to_parquet(parquet_path, index=False)
+    from openpi_client.e0.artifacts import rewrite_columns
+    if VALUE_LABEL_COLUMN in table.column_names:
+        table=rewrite_columns(table,{VALUE_LABEL_COLUMN:value_labels})
+    else:
+        table=table.append_column(VALUE_LABEL_COLUMN,pa.array(value_labels[:,None].tolist(),type=pa.list_(pa.float32(),1)))
+        metadata=dict(table.schema.metadata or {})
+        if b"huggingface" in metadata:
+            hf=json.loads(metadata[b"huggingface"])
+            hf["info"]["features"][VALUE_LABEL_COLUMN]={"feature":{"dtype":"float32","_type":"Value"},"length":1,"_type":"Sequence"}
+            metadata[b"huggingface"]=json.dumps(hf).encode()
+            table=table.replace_schema_metadata(metadata)
+    temporary=parquet_path.with_suffix(".partial.parquet")
+    pq.write_table(table,temporary)
+    temporary.replace(parquet_path)
     return len(df)
 
 
@@ -89,7 +104,7 @@ def update_info_json(info_path: Path):
     info["features"][VALUE_LABEL_COLUMN] = {
         "dtype": "float32",
         "shape": [1],
-        "description": "Normalized value label: -(T-t)/T, range [-1, 0]",
+        "description": "Normalized value label: -(T-1-t)/T, range [-1, 0]",
     }
 
     with open(info_path, "w") as f:

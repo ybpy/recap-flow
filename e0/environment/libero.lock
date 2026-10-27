@@ -1,0 +1,582 @@
+--index-url http://mirrors.tencentyun.com/pypi/simple
+
+-e /mnt/code/recap-flow/packages/openpi-client
+-e /mnt/code/recap-flow/third_party/libero
+absl-py==2.1.0
+    # via
+    #   dm-tree
+    #   mujoco
+    #   tensorboard
+aiohappyeyeballs==2.7.1
+    # via aiohttp
+aiohttp==3.14.4
+    # via fsspec
+aiosignal==1.4.0
+    # via aiohttp
+annotated-types==0.8.0
+    # via pydantic
+antlr4-python3-runtime==4.9.3
+    # via
+    #   hydra-core
+    #   omegaconf
+anyio==4.14.2
+    # via httpx
+asciitree==0.3.3
+    # via zarr
+async-timeout==5.0.1
+    # via aiohttp
+attrs==26.1.0
+    # via
+    #   aiohttp
+    #   dm-tree
+    #   jsonlines
+    #   jsonschema
+    #   referencing
+    #   rerun-sdk
+av==14.2.0
+    # via
+    #   lerobot
+bddl==1.0.1
+beautifulsoup4==4.15.0
+    # via gdown
+blinker==1.9.0
+    # via flask
+cachebox==5.2.3
+    # via deepdiff
+certifi==2024.12.14
+    # via
+    #   httpcore
+    #   httpx
+    #   requests
+    #   sentry-sdk
+cffi==2.1.1
+    # via pymunk
+charset-normalizer==3.4.0
+    # via
+    #   requests
+click==8.5.0
+    # via
+    #   flask
+    #   tree
+    #   wandb
+cloudpickle==2.1.0
+    # via
+    #   gym
+    #   gymnasium
+cmake==3.31.6
+    # via
+    #   lerobot
+cycler==0.12.1
+    # via
+    #   matplotlib
+datasets==3.6.0
+    # via
+    #   lerobot
+deepdiff==9.1.0
+    # via lerobot
+diffusers==0.39.0
+    # via lerobot
+dill==0.3.8
+    # via
+    #   datasets
+    #   multiprocess
+dm-tree==0.1.10
+    # via openpi-client
+docker-pycreds==0.4.0
+    # via wandb
+docstring-parser==0.16
+    # via
+    #   tyro
+draccus==0.10.0
+    # via
+    #   lerobot
+easydict==1.9
+egl-probe==1.0.2
+    # via robomimic
+einops==0.8.1
+    # via
+    #   lerobot
+etils==1.3.0
+    # via
+    #   mujoco
+eval-type-backport==0.2.0
+evdev==1.7.1
+    # via
+    #   pynput
+exceptiongroup==1.3.1
+    # via
+    #   anyio
+    #   pytest
+farama-notifications==0.0.6
+    # via gymnasium
+fasteners==0.20
+    # via zarr
+fastjsonschema==2.22.2
+    # via nbformat
+filelock==4.0.12
+    # via
+    #   datasets
+    #   diffusers
+    #   gdown
+    #   huggingface-hub
+    #   torch
+    #   transformers
+flask==3.1.3
+    # via lerobot
+fonttools==4.55.3
+    # via
+    #   matplotlib
+frozenlist==1.8.0
+    # via
+    #   aiohttp
+    #   aiosignal
+fsspec==2025.3.0
+    # via
+    #   datasets
+    #   huggingface-hub
+    #   torch
+future==0.18.2
+gdown==6.4.1
+    # via lerobot
+gitdb==4.0.12
+    # via gitpython
+gitpython==3.2.0
+    # via wandb
+glfw==1.12.0
+    # via
+    #   mujoco
+grpcio==1.84.0
+    # via tensorboard
+gym==0.25.2
+gym-notices==0.1.0
+    # via gym
+gymnasium==0.29.1
+    # via lerobot
+h11==0.16.0
+    # via httpcore
+h5py==3.13.0
+    # via
+    #   lerobot
+    #   robomimic
+hf-transfer==0.1.9
+    # via huggingface-hub
+hf-xet==1.7.0
+    # via huggingface-hub
+httpcore==1.0.9
+    # via httpx
+httpx==0.28.1
+    # via diffusers
+huggingface-hub==0.36.2
+    # via
+    #   datasets
+    #   diffusers
+    #   lerobot
+    #   tokenizers
+    #   transformers
+hydra-core==1.2.0
+idna==3.10
+    # via
+    #   anyio
+    #   httpx
+    #   requests
+    #   yarl
+imageio==2.35.1
+    # via
+    #   lerobot
+    #   robomimic
+imageio-ffmpeg==0.5.1
+    # via
+    #   imageio
+    #   robomimic
+importlib-metadata==8.5.0
+    # via
+    #   diffusers
+importlib-resources==6.4.5
+    # via
+    #   etils
+iniconfig==2.3.1
+    # via pytest
+inquirerpy==0.3.4
+    # via huggingface-hub
+itsdangerous==2.2.0
+    # via flask
+jinja2==3.1.6
+    # via
+    #   flask
+    #   torch
+jsonlines==4.0.0
+    # via
+    #   lerobot
+jsonschema==4.26.0
+    # via nbformat
+jsonschema-specifications==2025.9.1
+    # via jsonschema
+jupyter-core==5.9.1
+    # via nbformat
+jupytext==1.19.6
+    # via bddl
+kiwisolver==1.4.7
+    # via
+    #   matplotlib
+lerobot @ git+https://github.com/huggingface/lerobot@0cf864870cf29f4738d3ade893e6fd13fbd7cdb5
+llvmlite==0.44.0
+    # via
+    #   numba
+markdown==3.10.3
+    # via tensorboard
+markdown-it-py==3.0.0
+    # via
+    #   jupytext
+    #   mdit-py-plugins
+    #   rich
+markupsafe==3.0.4
+    # via
+    #   flask
+    #   jinja2
+    #   werkzeug
+matplotlib==3.5.3
+mdit-py-plugins==0.6.1
+    # via jupytext
+mdurl==0.1.2
+    # via
+    #   markdown-it-py
+mergedeep==1.3.4
+    # via draccus
+mpmath==1.3.0
+    # via sympy
+msgpack==1.2.3
+    # via openpi-client
+mujoco==3.2.3
+    # via
+    #   robosuite
+multidict==6.9.1
+    # via
+    #   aiohttp
+    #   yarl
+multiprocess==0.70.16
+    # via datasets
+mypy-extensions==1.1.0
+    # via typing-inspect
+nbformat==5.11.1
+    # via jupytext
+networkx==3.4.2
+    # via
+    #   bddl
+    #   torch
+numba==0.61.2
+    # via
+    #   lerobot
+    #   robosuite
+numcodecs==0.13.1
+    # via zarr
+numpy==1.26.4
+    # via
+    #   bddl
+    #   datasets
+    #   diffusers
+    #   dm-tree
+    #   gym
+    #   gymnasium
+    #   h5py
+    #   imageio
+    #   matplotlib
+    #   mujoco
+    #   numba
+    #   numcodecs
+    #   opencv-python
+    #   opencv-python-headless
+    #   openpi-client
+    #   pandas
+    #   rerun-sdk
+    #   robomimic
+    #   robosuite
+    #   scipy
+    #   tensorboard
+    #   tensorboardx
+    #   torchvision
+    #   transformers
+    #   zarr
+omegaconf==2.3.1
+    # via
+    #   hydra-core
+    #   lerobot
+opencv-python==4.11.0.86
+    # via
+    #   robosuite
+opencv-python-headless==4.11.0.86
+    # via
+    #   lerobot
+orderly-set==5.5.0
+    # via deepdiff
+packaging==24.2
+    # via
+    #   datasets
+    #   huggingface-hub
+    #   hydra-core
+    #   jupytext
+    #   lerobot
+    #   matplotlib
+    #   pytest
+    #   tensorboard
+    #   tensorboardx
+    #   transformers
+pandas==2.3.3
+    # via datasets
+pfzy==0.3.4
+    # via inquirerpy
+pillow==10.4.0
+    # via
+    #   diffusers
+    #   imageio
+    #   matplotlib
+    #   openpi-client
+    #   rerun-sdk
+    #   robosuite
+    #   tensorboard
+    #   torchvision
+    #   tree
+platformdirs==4.12.4
+    # via
+    #   jupyter-core
+    #   wandb
+pluggy==1.6.0
+    # via pytest
+prompt-toolkit==3.0.53
+    # via inquirerpy
+propcache==0.5.4
+    # via
+    #   aiohttp
+    #   yarl
+protobuf==6.33.6
+    # via
+    #   tensorboard
+    #   tensorboardx
+    #   wandb
+psutil==6.1.0
+    # via
+    #   imageio
+    #   robomimic
+    #   wandb
+pyarrow==25.0.1
+    # via
+    #   datasets
+    #   rerun-sdk
+pycparser==3.0
+    # via cffi
+pydantic==2.11.10
+    # via wandb
+pydantic-core==2.33.2
+    # via pydantic
+pygments==2.18.0
+    # via
+    #   pytest
+    #   rich
+pymunk==7.3.0
+    # via lerobot
+pynput==1.7.7
+    # via
+    #   lerobot
+    #   robosuite
+pyopengl==3.1.7
+    # via
+    #   mujoco
+pyparsing==3.1.4
+    # via
+    #   matplotlib
+pysocks==1.7.1
+    # via requests
+pytest==9.1.1
+    # via bddl
+python-dateutil==2.9.0.post0
+    # via
+    #   matplotlib
+    #   pandas
+python-xlib==0.33
+    # via
+    #   pynput
+pytz==2026.5
+    # via pandas
+pyyaml==6.0.2
+    # via
+    #   datasets
+    #   draccus
+    #   huggingface-hub
+    #   jupytext
+    #   omegaconf
+    #   pyyaml-include
+    #   transformers
+    #   wandb
+pyyaml-include==1.4.1
+    # via draccus
+pyzmq==27.2.0
+    # via lerobot
+referencing==0.37.0
+    # via
+    #   jsonschema
+    #   jsonschema-specifications
+regex==2026.9.29
+    # via
+    #   diffusers
+    #   transformers
+requests==2.32.3
+    # via
+    #   datasets
+    #   diffusers
+    #   gdown
+    #   huggingface-hub
+    #   transformers
+    #   wandb
+rerun-sdk==0.23.1
+    # via lerobot
+rich==13.9.4
+    # via
+    #   tyro
+robomimic==0.2.0
+robosuite==1.4.1
+rpds-py==0.30.0
+    # via
+    #   jsonschema
+    #   referencing
+safetensors==0.8.0
+    # via
+    #   diffusers
+    #   transformers
+scipy==1.10.1
+    # via
+    #   robosuite
+sentry-sdk==2.71.0
+    # via wandb
+setproctitle==1.3.8
+    # via wandb
+setuptools==75.3.0
+    # via
+    #   imageio-ffmpeg
+    #   tensorboard
+    #   tree
+    #   wandb
+shtab==1.7.1
+    # via
+    #   tyro
+six==1.17.0
+    # via
+    #   docker-pycreds
+    #   pynput
+    #   python-dateutil
+    #   python-xlib
+smmap==5.0.3
+    # via gitdb
+soupsieve==2.10
+    # via beautifulsoup4
+svgwrite==1.4.3
+    # via tree
+sympy==1.14.0
+    # via torch
+tensorboard==2.21.0
+    # via robomimic
+tensorboard-data-server==0.7.2
+    # via tensorboard
+tensorboardx==2.6.5
+    # via robomimic
+termcolor==2.4.0
+    # via
+    #   lerobot
+    #   robomimic
+    #   robosuite
+thop==0.1.1.post2209072238
+tokenizers==0.21.4
+    # via transformers
+toml==0.10.2
+    # via draccus
+tomli==2.5.0
+    # via
+    #   jupytext
+    #   pytest
+torch @ https://mirrors.aliyun.com/pytorch-wheels/cpu/torch-2.7.1%2Bcpu-cp310-cp310-manylinux_2_28_x86_64.whl#sha256=1f04a373a3f643821f721da9898ef77dce73b5b6bfc64486f0976f7fb5f90e83
+    # via
+    #   lerobot
+    #   robomimic
+    #   thop
+    #   torchvision
+torchcodec==0.4.0
+    # via
+    #   lerobot
+torchvision @ https://download-r2.pytorch.org/whl/cpu/torchvision-0.22.1%2Bcpu-cp310-cp310-manylinux_2_28_x86_64.whl#sha256=e31f1273a8dd9760906288036ac3c8f5fef25eed393da0491db150d7be78910d
+    # via
+    #   lerobot
+    #   robomimic
+tqdm==4.67.1
+    # via
+    #   datasets
+    #   gdown
+    #   huggingface-hub
+    #   robomimic
+    #   transformers
+traitlets==5.16.1
+    # via
+    #   jupyter-core
+    #   nbformat
+transformers==4.53.2
+tree==0.2.4
+    # via openpi-client
+typeguard==4.4.0
+    # via
+    #   tyro
+typing-extensions==4.12.2
+    # via
+    #   aiohttp
+    #   aiosignal
+    #   anyio
+    #   beautifulsoup4
+    #   etils
+    #   exceptiongroup
+    #   gdown
+    #   grpcio
+    #   gymnasium
+    #   huggingface-hub
+    #   multidict
+    #   pydantic
+    #   pydantic-core
+    #   referencing
+    #   rerun-sdk
+    #   rich
+    #   torch
+    #   typeguard
+    #   typing-inspect
+    #   typing-inspection
+    #   tyro
+    #   wandb
+typing-inspect==0.9.0
+    # via draccus
+typing-inspection==0.4.2
+    # via pydantic
+tyro==0.9.2
+tzdata==2026.5
+    # via pandas
+urllib3==2.2.3
+    # via
+    #   gdown
+    #   requests
+    #   sentry-sdk
+wandb==0.19.11
+    # via
+    #   lerobot
+wcwidth==0.9.2
+    # via prompt-toolkit
+websockets==16.1.1
+    # via openpi-client
+werkzeug==3.1.9
+    # via
+    #   flask
+    #   tensorboard
+wrapt==2.5.0
+    # via dm-tree
+xxhash==4.0.1
+    # via datasets
+yarl==1.25.1
+    # via aiohttp
+zarr==2.18.3
+    # via lerobot
+zipp==3.20.2
+    # via
+    #   etils
+    #   importlib-metadata

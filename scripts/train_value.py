@@ -74,9 +74,6 @@ def _resolve_local_gemma_tokenizer_path(tokenizer_path: str | None) -> str | Non
     candidates.extend(
         [
             repo_root / "gemma" / "tokenizer.model",
-            Path("/public/home/wangsenbao_it/litianheng/checkpoint/tokenizer.model"),
-            Path("/public/home/wangsenbao_it/litianheng/checkpoint/gemma-3-270m/tokenizer.model"),
-            Path("/data/train_dataset/checkpoint/gemma-3-270m/tokenizer.model"),
         ]
     )
 
@@ -133,8 +130,10 @@ class GemmaValueTokenizer:
         state["_tokenizer"] = None
         return state
 
-    def tokenize(self, prompt: str, state: jnp.ndarray | None = None) -> tuple[jnp.ndarray, jnp.ndarray]:
-        del state
+    def tokenize(self, prompt: str, state: jnp.ndarray | None = None, adv_ind=None,
+                 *, adv_ind_dropout: bool = False) -> tuple[np.ndarray, np.ndarray]:
+        # Critic input has no actor condition; accept the shared transform's interface.
+        del state, adv_ind, adv_ind_dropout
 
         tokenizer = self._get_tokenizer()
         text = f"{str(prompt).rstrip()}\nValue:"
@@ -144,7 +143,7 @@ class GemmaValueTokenizer:
         else:
             tokens = tokens + [0] * (self._max_len - len(tokens))
 
-        tokens = jnp.asarray(tokens, dtype=jnp.int32)
+        tokens = np.asarray(tokens, dtype=np.int32)
         mask = tokens != 0
         return tokens, mask
 
@@ -287,6 +286,8 @@ def create_train_state(
     warmup_steps: int | None = None,
     grad_clip_norm: float = 1.0,
     freeze_mode: str = "all_backbones",
+    siglip_path: str | None = None,
+    gemma_checkpoint_dir: str | None = None,
 ) -> tuple[TrainState, optax.GradientTransformation, optax.Schedule]:
     """创建训练状态。"""
     model = config.create(rng)
@@ -294,7 +295,7 @@ def create_train_state(
 
     if load_pretrained:
         logging.info(console.info("加载 SigLIP + Gemma3-270M 预训练权重..."))
-        loader = ValueModelWeightLoader()
+        loader = ValueModelWeightLoader(siglip_path=siglip_path, gemma_checkpoint_dir=gemma_checkpoint_dir)
         params_dict = params.to_pure_dict()
         loaded_params = loader.load(params_dict)
         params.replace_by_pure_dict(loaded_params)
@@ -304,7 +305,7 @@ def create_train_state(
 
     if warmup_steps is None:
         warmup_steps = min(1000, num_train_steps // 10)
-    decay_steps = max(num_train_steps - warmup_steps, 1)
+    decay_steps = num_train_steps
     lr_schedule = optax.warmup_cosine_decay_schedule(
         init_value=peak_lr / (warmup_steps + 1),
         peak_value=peak_lr,
@@ -501,6 +502,8 @@ def main():
         default="all_backbones",
         help="冻结策略: none=全量训练, siglip_only=只冻结SigLIP, all_backbones=冻结SigLIP和Gemma backbone",
     )
+    parser.add_argument("--siglip_path", type=str)
+    parser.add_argument("--gemma_checkpoint_dir", type=str)
     args = parser.parse_args()
 
     init_logging()
@@ -691,6 +694,8 @@ def main():
         warmup_steps=args.warmup_steps,
         grad_clip_norm=args.grad_clip_norm,
         freeze_mode=args.freeze_mode,
+        siglip_path=args.siglip_path,
+        gemma_checkpoint_dir=args.gemma_checkpoint_dir,
     )
     logging.info("\033[1;32m模型初始化完成\033[0m")
     

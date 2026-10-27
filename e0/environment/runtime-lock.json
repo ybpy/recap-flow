@@ -1,0 +1,25 @@
+{
+  "cyy_dev": {
+    "nccl_version": "2.31.2",
+    "artifact": "/mnt/recap-flow-runtime/assets/nccl/2.31.2/manifest.json",
+    "library_sha256": "dba12e429fe11268b895d0531ba96a7f679f35227d5b1ec77c5febbcd02281bd",
+    "environment": {
+      "NCCL_PROTO": "LL",
+      "NCCL_P2P_DISABLE": "1",
+      "JAX_ENABLE_COMPILATION_CACHE": "false"
+    }
+  },
+  "egl": {
+    "driver": "580.126.20",
+    "manifest": "/mnt/recap-flow-runtime/assets/nvidia-egl/580.126.20/manifest.json"
+  },
+  "a800": "Use native platform runtime; requires separate full-batch preflight, training and recovery tests",
+  "determinism": {
+    "xla_flags": [
+      "--xla_gpu_deterministic_ops=true",
+      "--xla_gpu_autotune_level=0",
+      "--xla_gpu_enable_triton_gemm=false"
+    ],
+    "rationale": "Cross-process recovery and policy replay; actual full-model verification required"
+  }
+}

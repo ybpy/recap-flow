@@ -65,14 +65,22 @@ class Policy(BasePolicy):
             self._rng = rng or jax.random.key(0)
 
     @override
-    def infer(self, obs: dict, *, noise: np.ndarray | None = None) -> dict:  # type: ignore[misc]
+    def infer(self, obs: dict, *, noise: np.ndarray | None = None, sampling_seed: int | None = None) -> dict:  # type: ignore[misc]
         # Make a copy since transformations may modify the inputs in place.
         inputs = jax.tree.map(lambda x: x, obs)
+        wire_seed = inputs.pop("sampling_seed", None)
+        if sampling_seed is None:
+            sampling_seed = wire_seed
+        if sampling_seed is not None and self._is_pytorch_model:
+            raise NotImplementedError("E0 seeded inference is JAX-only")
         inputs = self._input_transform(inputs)
         if not self._is_pytorch_model:
             # Make a batch and convert to jax.Array.
             inputs = jax.tree.map(lambda x: jnp.asarray(x)[np.newaxis, ...], inputs)
-            self._rng, sample_rng_or_pytorch_device = jax.random.split(self._rng)
+            if sampling_seed is None:
+                self._rng, sample_rng_or_pytorch_device = jax.random.split(self._rng)
+            else:
+                sample_rng_or_pytorch_device = jax.random.key(int(sampling_seed))
         else:
             # Convert inputs to PyTorch tensors and move to correct device
             inputs = jax.tree.map(lambda x: torch.from_numpy(np.array(x)).to(self._pytorch_device)[None, ...], inputs)

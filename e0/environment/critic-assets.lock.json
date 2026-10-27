@@ -1,0 +1,91 @@
+{
+  "repo": "ybpy/vlm_ckpt",
+  "revision": "c266f612b9c3a1d3cd75d6c194564d4db754e070",
+  "verified": true,
+  "files": [
+    {
+      "publisher_path": "gemma-3-270m/_CHECKPOINT_METADATA",
+      "bytes": 258,
+      "sha256": "a2e76243df0d8f799a2bb6c9dcece2dbfc3c8523b8ccaa91b835a8ccb39b997c",
+      "publisher_oid": "81d8dcca6aaca5630d5c19fac5ec55ab4b1ee110",
+      "destination": "gemma-pretrained/_CHECKPOINT_METADATA"
+    },
+    {
+      "publisher_path": "gemma-3-270m/_METADATA",
+      "bytes": 48166,
+      "sha256": "0b3d59c0f11bd11e70f722dfd6204a01a3e3f663315cefc0238d169ffd4e9b71",
+      "publisher_oid": "df020a766b69c6a34c2b6499c4fcb044e11bad95",
+      "destination": "gemma-pretrained/_METADATA"
+    },
+    {
+      "publisher_path": "gemma-3-270m/d/dbde678a303ce6d7e41a1415c55c8673",
+      "bytes": 72279,
+      "sha256": "9bcd29b2211f60010673d0b1559fd02055f7c9b56685974e5d42bc31d9aabe1c",
+      "publisher_oid": "48d9be5bf1d32b3d8f7dff49cc2c64c46488034d",
+      "destination": "gemma-pretrained/d/dbde678a303ce6d7e41a1415c55c8673"
+    },
+    {
+      "publisher_path": "gemma-3-270m/descriptor/descriptor.pbtxt",
+      "bytes": 511,
+      "sha256": "97b2fa947f5a83f4793d07a5914317c80a43b1a5bd6d18b350b84fe50f1ec747",
+      "publisher_oid": "46874186c5716cb695186e163e29ae7779e03514",
+      "destination": "gemma-pretrained/descriptor/descriptor.pbtxt"
+    },
+    {
+      "publisher_path": "gemma-3-270m/descriptor/uuid-be4dcd19-4a4f-478c-be6e-2d8f9729c81c",
+      "bytes": 45,
+      "sha256": "59a63354813117e650678e33c1baa1c566a24260c8cabb1504b1896288d6d14c",
+      "publisher_oid": "1b640955215ac5fd559c620181fed029112e7374",
+      "destination": "gemma-pretrained/descriptor/uuid-be4dcd19-4a4f-478c-be6e-2d8f9729c81c"
+    },
+    {
+      "publisher_path": "gemma-3-270m/manifest.ocdbt",
+      "bytes": 120,
+      "sha256": "3090d808eac9de8af521c387e0fdf1f6733739754266c696a55e9343a5a682dd",
+      "publisher_oid": "d96d5d313e734a4cc9d572877b87facb4e8d8673",
+      "destination": "gemma-pretrained/manifest.ocdbt"
+    },
+    {
+      "publisher_path": "gemma-3-270m/ocdbt.process_0/d/11082c885e90fe0df02af2ba07923d85",
+      "bytes": 576,
+      "sha256": "710d07c71194415637c99cf662f3c47ccd8fcd65d9791c54b8188bf79e2ec9b9",
+      "publisher_oid": "425fca0f53aa986f70bb1e93bfea164ee7c4846a",
+      "destination": "gemma-pretrained/ocdbt.process_0/d/11082c885e90fe0df02af2ba07923d85"
+    },
+    {
+      "publisher_path": "gemma-3-270m/ocdbt.process_0/d/4f4551e7da6766f773393bf2885d8e40",
+      "bytes": 418839956,
+      "sha256": "3b26cfce3672dbcd870ff4c47f50211fcf8e690f03451da119e2e281885de303",
+      "publisher_oid": "3b26cfce3672dbcd870ff4c47f50211fcf8e690f03451da119e2e281885de303",
+      "destination": "gemma-pretrained/ocdbt.process_0/d/4f4551e7da6766f773393bf2885d8e40"
+    },
+    {
+      "publisher_path": "gemma-3-270m/ocdbt.process_0/d/b34e645f95170cb3525760f76bf8b261",
+      "bytes": 72263,
+      "sha256": "131b409a7ab88aaf3923e1a924ec44107a0bc0845a76a71dd7d0b4bfb52530f3",
+      "publisher_oid": "ee1b31c5b6997a62b8a637251f9b39abee683f92",
+      "destination": "gemma-pretrained/ocdbt.process_0/d/b34e645f95170cb3525760f76bf8b261"
+    },
+    {
+      "publisher_path": "gemma-3-270m/ocdbt.process_0/manifest.ocdbt",
+      "bytes": 223,
+      "sha256": "4b8403cee4d3be5b5737628e895afdd66b30594c622b229d8c82d0dabdc9c72e",
+      "publisher_oid": "5cd2d4d8e4a313281ec59d8a0e17bf167ffd4632",
+      "destination": "gemma-pretrained/ocdbt.process_0/manifest.ocdbt"
+    },
+    {
+      "publisher_path": "siglip2-so400m-patch14-224-jax/siglip2_so400m14_224.npz",
+      "bytes": 4541875120,
+      "sha256": "08287c206d4916784ef5e8a4e98dc5159fd3d520cf1b88a3e0927b57dd699094",
+      "publisher_oid": "08287c206d4916784ef5e8a4e98dc5159fd3d520cf1b88a3e0927b57dd699094",
+      "destination": "siglip-resumed.npz"
+    },
+    {
+      "publisher_path": "tokenizer.model",
+      "bytes": 4689074,
+      "sha256": "1299c11d7cf632ef3b4e11937501358ada021bbdf7c47638d13c0ee982f2e79c",
+      "publisher_oid": "1299c11d7cf632ef3b4e11937501358ada021bbdf7c47638d13c0ee982f2e79c",
+      "destination": "tokenizer.model"
+    }
+  ]
+}

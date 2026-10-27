@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "protocol_id": "e0-v1-calibration-pending",
+  "scope": "pi0.5 RECAP adaptation; not a full pi*0.6 reproduction",
+  "starting_commit": "d7b6ebdf41fdfeb368ef157965c1c41b7c056ddd",
+  "sft": {
+    "suites": [
+      "libero_spatial",
+      "libero_object",
+      "libero_goal",
+      "libero_10"
+    ],
+    "tasks": 40,
+    "source": "all four standard no_noops datasets; no additional filtering",
+    "sampling": "frame_uniform_shuffle",
+    "condition": "positive",
+    "condition_dropout": 0.3
+  },
+  "recap": {
+    "suite": "libero_10",
+    "tasks": 10,
+    "rounds": 2,
+    "attempts_per_task_per_round": 50,
+    "sampling": {
+      "long": 0.75,
+      "other": 0.25,
+      "within_group": "uniform task, then uniform frame; demo and rollout pooled"
+    },
+    "pool": "all demos + all shared R1 autonomous + this branch's R2 autonomous",
+    "success_failure_balance": null,
+    "manual_interventions": false
+  },
+  "initialization": {
+    "actor_base_reset": "fixed pi05_base each round",
+    "actor_warm_start": "same seed selected previous-stage EMA; optimizer/schedule/EMA reinitialized",
+    "critic": "same seed-specific pretrained backbone and fresh new layers every round"
+  },
+  "inference": {
+    "H": 10,
+    "K": 5,
+    "flow_steps": 10,
+    "adv_guidance_beta": 1,
+    "condition": "positive",
+    "condition_dropout": false,
+    "long_policy_steps": 520,
+    "dummy_steps": 10,
+    "dummy_in_trajectory": false
+  },
+  "labels": {
+    "normalization": "individual trajectory T",
+    "success_reward_label": "nonfinal -1/T, final 0",
+    "failure_reward_label": "nonfinal -1/T, final -1",
+    "success_value_label": "-(T-1-t)/T",
+    "failure_value_label": -1,
+    "lookahead_env_steps": 50,
+    "gamma": 1,
+    "terminal_bootstrap": 0,
+    "positive_rule": "per-task percentile70 of all autonomous frames, A >= threshold; ties retained",
+    "experts": "demo/intervention always positive, excluded from percentile",
+    "relabel": "all accumulated autonomous episodes with latest selected critic"
+  },
+  "actor": {
+    "global_batch": 256,
+    "warmup": 10000,
+    "peak_lr": 0.00005,
+    "end_lr": 0.00005,
+    "clip": 1,
+    "ema": 0.999,
+    "fsdp_devices": 1
+  },
+  "critic": {
+    "global_batch": 32,
+    "warmup": 1000,
+    "peak_lr": 0.000025,
+    "end_lr": 0.0000025,
+    "clip": 1,
+    "ema": 0.99,
+    "cosine_decay_steps": "total planned updates",
+    "head": "unchanged 201-bin two-hot CE",
+    "freeze_mode": null
+  },
+  "calibration": {
+    "training_seed": 42,
+    "sft_updates": [
+      30000,
+      40000,
+      50000
+    ],
+    "r1_updates": [
+      30000,
+      45000,
+      60000
+    ],
+    "r2_updates": [
+      30000,
+      45000,
+      60000,
+      90000
+    ],
+    "warm_start_extra": [
+      10000,
+      20000
+    ],
+    "critic_updates": [
+      10000,
+      20000
+    ],
+    "critic_modes": [
+      "all_backbones",
+      "none"
+    ],
+    "final_budgets": null,
+    "checkpoint_window": null
+  },
+  "formal": {
+    "training_seeds": [
+      0,
+      1,
+      2
+    ],
+    "branches": [
+      "base_reset",
+      "warm_start"
+    ],
+    "actor_runs": 15,
+    "critic_runs": 9,
+    "training_attempts": 4500,
+    "development_attempts_if_four_candidates": 48000,
+    "final_attempts": 22500
+  },
+  "evaluation": {
+    "sft_selection": "40 tasks x 50 official init states x 1 dev group",
+    "recap_selection": "10 Long tasks x 50 official init states x 1 dev group",
+    "final": "10 Long tasks x 50 official init states x 3 eval groups",
+    "actor_metric": "task-macro success; ties earliest updates",
+    "critic_metric": "task-macro CE on independent development episodes; ties earliest updates",
+    "critic_validation": "R1: selected SFT Long dev; R2: SFT Long dev + own selected R1 Long dev",
+    "final_statistics": "average 3 eval groups per trained seed, then mean and sample SD of 3 trained seeds",
+    "ood_claim": false
+  },
+  "deployment": {
+    "developer_host": "cyy_dev",
+    "cloud_task_submission": "user manual only",
+    "formal_training": "single node, one JAX process, 8 A800-80G",
+    "sixteen_gpus": "two independent eight-GPU jobs",
+    "final_evaluation": "fixed A800 platform after calibration"
+  },
+  "status": "Implementation in progress; not a declaration of completed audits or experiments"
+}
