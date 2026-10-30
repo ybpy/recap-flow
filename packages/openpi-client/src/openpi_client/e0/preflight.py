@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 import numpy as np
 from openpi_client.e0.artifacts import write_json
 
@@ -20,7 +21,17 @@ def configure_libero():
         "assets": str(base / "assets"),
         "datasets": "/mnt/recap-flow-runtime/datasets",
     }
-    (config / "config.yaml").write_text("".join(f"{key}: {value}\n" for key, value in values.items()))
+    # Workers read this shared file at episode boundaries. Never expose a
+    # truncated file while another worker is constructing an environment.
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", dir=config, prefix=".config-", suffix=".yaml", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write("".join(f"{key}: {value}\n" for key, value in values.items()))
+        os.replace(temporary, config / "config.yaml")
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return values
 
 
