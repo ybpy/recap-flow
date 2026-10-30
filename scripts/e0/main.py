@@ -45,7 +45,7 @@ def main():
     p.add_argument("--output", required=True)
     p.add_argument("--devices", nargs="+", type=int, default=[0])
     p.add_argument("--workers-per-device", type=int, default=4)
-    p.add_argument("--platform", choices=["cyy_dev", "a800"], required=True)
+    p.add_argument("--platform", choices=["cyy_dev", "a800", "pro5000"], required=True)
     p.add_argument("--port-base", type=int, default=9000)
     p.add_argument("--timeout", type=float, default=120)
     p.add_argument("--wall-timeout", type=float, default=86400)
@@ -103,16 +103,17 @@ def main():
     p = sub.add_parser("test")
     p = sub.add_parser("smoke-configs")
     p.add_argument("--output", default="/mnt/recap-flow-runtime/jobs")
-    p.add_argument("--platform", choices=["cyy_dev", "a800"], default="cyy_dev")
+    p.add_argument("--platform", choices=["cyy_dev", "a800", "pro5000"], default="cyy_dev")
     p.add_argument("--name", default="e0-smoke")
     p = sub.add_parser("smoke")
-    p.add_argument("--platform", choices=["cyy_dev", "a800"], required=True)
+    p.add_argument("--platform", choices=["cyy_dev", "a800", "pro5000"], required=True)
     p.add_argument("--output", required=True)
     p.add_argument(
         "--phase", choices=["all", "preflight", "training", "recovery", "collect", "closed-loop"], default="all"
     )
     p.add_argument("--jobs-index")
     p = sub.add_parser("pilot-sft")
+    p.add_argument("--platform", choices=("cyy_dev", "a800", "pro5000"), default="pro5000")
     p.add_argument("--output", required=True)
     p = sub.add_parser("training-config")
     p.add_argument("--request", required=True)
@@ -126,9 +127,49 @@ def main():
     p.add_argument("--manifest", required=True)
     p.add_argument("--bindings", required=True)
     p.add_argument("--output", required=True)
+    p = sub.add_parser("migration-audit")
+    p.add_argument("--output", required=True)
+    p = sub.add_parser("research-prepare")
+    p.add_argument("--results", required=True)
+    p.add_argument("--namespace", required=True)
+    p.add_argument("--output", required=True)
+    p = sub.add_parser("research-labels")
+    p.add_argument("--datasets", nargs="+", required=True)
+    p.add_argument("--output", required=True)
+    p = sub.add_parser("research-conditions")
+    p.add_argument("--manifest", required=True)
+    p.add_argument("--checkpoint", required=True)
+    p.add_argument("--plan", required=True)
+    p.add_argument("--output", required=True)
+    p = sub.add_parser("replay-check")
+    p.add_argument("--results", required=True)
+    p.add_argument("--output", required=True)
+    p = sub.add_parser("research-loss")
+    p.add_argument("--manifest", required=True)
+    p.add_argument("--checkpoint", required=True)
+    p.add_argument("--output", required=True)
+    p.add_argument("--frames-per-task", type=int, default=32)
+    p = sub.add_parser("research-branch")
+    p.add_argument("--manifest", required=True)
+    p.add_argument("--output", required=True)
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8000)
+    p.add_argument("--timeout", type=int, default=120)
     args = vars(parser.parse_args())
     command = args.pop("command")
-    if command in ("run", "resume"):
+    if command == "migration-audit":
+        from openpi.e0.migration import audit
+
+        audit(**args)
+    elif command in ("research-prepare", "research-labels", "research-conditions", "research-loss"):
+        from openpi.e0 import research
+
+        getattr(research, "loss_probe" if command == "research-loss" else command.removeprefix("research-"))(**args)
+    elif command in ("replay-check", "research-branch"):
+        from openpi_client.e0 import research
+
+        (research.replay_check if command == "replay-check" else research.branch_run)(**args)
+    elif command in ("run", "resume"):
         from openpi.e0.train import run
 
         run(args.pop("manifest"), resume=command == "resume", **args)

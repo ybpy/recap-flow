@@ -2,6 +2,7 @@
 set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 export RECAP_RUNTIME=${RECAP_RUNTIME:-/mnt/recap-flow-runtime}
+if [[ "${E0_PLATFORM:-}" == pro5000 ]]; then source "$ROOT/e0/environment/pro5000.sh" "${1:-}"; fi
 export UV_PYTHON_INSTALL_DIR="$ROOT/.uv-python"
 export UV_CACHE_DIR="$RECAP_RUNTIME/uv-cache"
 export UV_LINK_MODE=copy
@@ -13,7 +14,16 @@ export JAX_COMPILATION_CACHE_DIR="$RECAP_RUNTIME/cache/jax/${E0_PLATFORM:-unspec
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 export TF_CPP_MIN_LOG_LEVEL=3
 # Fix kernel selection across process restarts; preserve model dtype and optimizer math.
-for flag in --xla_gpu_deterministic_ops=true --xla_gpu_autotune_level=0 --xla_gpu_enable_triton_gemm=false; do
+autotune_level=0
+if [[ "${E0_PLATFORM:-}" == pro5000 ]]; then autotune_level=1; fi
+for flag in --xla_gpu_deterministic_ops=true --xla_gpu_autotune_level=$autotune_level --xla_gpu_enable_triton_gemm=false; do
+  key=${flag%%=*}
+  for existing in ${XLA_FLAGS:-}; do
+    if [[ "${existing%%=*}" == "$key" && "$existing" != "$flag" ]]; then
+      echo "Conflicting frozen XLA option: $existing (expected $flag)" >&2
+      exit 2
+    fi
+  done
   if [[ " ${XLA_FLAGS:-} " != *" $flag "* ]]; then
     export XLA_FLAGS="${XLA_FLAGS:-} $flag"
   fi
@@ -50,13 +60,13 @@ mkdir -p "$TMPDIR" "$XDG_CACHE_HOME" "$LIBERO_CONFIG_PATH"
 cd "$ROOT"
 command=${1:-help}
 if [[ "$command" == env ]]; then exec bash "$ROOT/e0/environment/bootstrap.sh"; fi
-if [[ "$command" == rollout || "$command" == egl || "$command" == schema-libero ]]; then
+if [[ "$command" == rollout || "$command" == egl || "$command" == schema-libero || "$command" == replay-check || "$command" == research-branch ]]; then
   python="$ROOT/.venv-libero/bin/python"
 else
   python="$ROOT/.venv-train/bin/python"
 fi
 case "$command" in
-  run|resume|serve|predict|preflight) export JAX_PLATFORMS=cuda ;;
+  run|resume|serve|predict|preflight|research-conditions|research-loss) export JAX_PLATFORMS=cuda ;;
   *) export JAX_PLATFORMS=cpu ;;
 esac
 exec "$python" "$ROOT/scripts/e0/main.py" "$@"

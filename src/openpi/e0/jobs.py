@@ -5,6 +5,7 @@ from pathlib import Path
 import shlex
 import subprocess
 
+from openpi.e0.platform import actor_fsdp
 from openpi_client.e0.artifacts import content_id
 from openpi_client.e0.artifacts import sha256_file
 from openpi_client.e0.artifacts import write_json
@@ -14,16 +15,17 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 def smoke_configs(output, platform="cyy_dev", name="e0-smoke"):
-    if platform not in ("cyy_dev", "a800"):
+    if platform not in ("cyy_dev", "a800", "pro5000"):
         raise ValueError(platform)
     common = {
         "stage": "sft",
+        "platform": platform,
         "seed": 42,
         "data_dir": str(RUNTIME / "datasets/sft-v1"),
         "dataset_manifest": str(RUNTIME / "datasets/sft-v1/e0-manifest.json"),
         "num_train_steps": 20,
         "warmup_steps": 2,
-        "num_workers": 0,
+        "num_workers": 8 if platform == "pro5000" else 0,
         "checkpoint_interval": 10,
         "checkpoint_updates": [20],
         "smoke": True,
@@ -35,7 +37,9 @@ def smoke_configs(output, platform="cyy_dev", name="e0-smoke"):
         id=f"{name}-{platform}-actor",
         kind="actor",
         batch_size=4 if platform == "cyy_dev" else 256,
-        fsdp_devices=4 if platform == "cyy_dev" else 1,
+        fsdp_devices=actor_fsdp(platform),
+        num_train_steps=100 if platform == "pro5000" else 20,
+        checkpoint_updates=[20, 100] if platform == "pro5000" else [20],
         initial_params="/mnt/models/pi05_base/params",
         initialization="pi05_base",
     )
@@ -66,20 +70,22 @@ def smoke_configs(output, platform="cyy_dev", name="e0-smoke"):
     return paths
 
 
-def pilot_sft(output):
+def pilot_sft(output, platform="pro5000"):
+    name = f"pilot-s42-sft-50k-{platform}"
     spec = {
-        "id": "pilot-s42-sft-50k",
+        "id": name,
         "kind": "actor",
         "stage": "sft",
+        "platform": platform,
         "seed": 42,
         "branch": "shared",
-        "run_dir": str(RUNTIME / "runs/pilot-s42-sft-50k"),
+        "run_dir": str(RUNTIME / "runs" / name),
         "data_dir": str(RUNTIME / "datasets/sft-v1"),
         "dataset_manifest": str(RUNTIME / "datasets/sft-v1/e0-manifest.json"),
         "num_train_steps": 50000,
         "warmup_steps": 10000,
         "batch_size": 256,
-        "fsdp_devices": 1,
+        "fsdp_devices": actor_fsdp(platform),
         "num_workers": 8,
         "checkpoint_interval": 1000,
         "checkpoint_updates": [30000, 40000, 50000],
@@ -104,7 +110,8 @@ def training_config(request, output):
     spec.setdefault("smoke", False)
     spec.setdefault("batch_size", 256 if spec["kind"] == "actor" else 32)
     spec.setdefault("warmup_steps", 10000 if spec["kind"] == "actor" else 1000)
-    spec.setdefault("fsdp_devices", 1)
+    spec.setdefault("platform", "pro5000")
+    spec.setdefault("fsdp_devices", actor_fsdp(spec["platform"]) if spec["kind"] == "actor" else 1)
     spec.setdefault("num_workers", 8)
     spec.setdefault("checkpoint_interval", 1000)
     if spec["kind"] == "actor":
@@ -261,10 +268,12 @@ def task_card(manifest, bindings, output):
             raise ValueError("each mount needs actual source, container path, and mode")
     operation = binding.get("operation", "train")
     resources = binding["resources"]
+    platform = spec.get("platform", "a800")
+    gpu_type = "PRO5000-72G" if platform == "pro5000" else "A800-80G"
     if operation in ("train", "validation") and (
-        resources["gpu_count"] != 8 or resources["nodes"] != 1 or resources["gpu_type"] != "A800-80G"
+        resources["gpu_count"] != 8 or resources["nodes"] != 1 or resources["gpu_type"] != gpu_type
     ):
-        raise ValueError("E0 training/validation requires one node with 8 A800-80G")
+        raise ValueError(f"E0 training/validation requires one node with 8 {gpu_type}")
     for required in (ROOT, Path("/mnt/models"), RUNTIME):
         if not any(required.is_relative_to(Path(mount["container"])) for mount in mounts):
             raise ValueError(f"task mounts do not cover {required}")
@@ -278,7 +287,7 @@ def task_card(manifest, bindings, output):
     if not binding.get("release_snapshot"):
         raise ValueError("immutable code/environment snapshot required")
     environment = {
-        "E0_PLATFORM": "a800",
+        "E0_PLATFORM": platform,
         "CUDA_VISIBLE_DEVICES": "0,1,2,3,4,5,6,7",
         "RECAP_RUNTIME": str(RUNTIME),
         "MUJOCO_GL": "egl",
@@ -357,7 +366,7 @@ def task_card(manifest, bindings, output):
             "--output",
             evaluation["output"],
             "--platform",
-            "a800",
+            platform,
             "--devices",
             *map(str, evaluation["devices"]),
             "--workers-per-device",
@@ -375,15 +384,15 @@ def task_card(manifest, bindings, output):
     elif operation == "validation":
         validation_output = binding["validation_output"]
         card["launch_command"] = (
-            base + " smoke --platform a800 --output " + shlex.quote(validation_output) + " --phase all"
+            base + " smoke --platform " + platform + " --output " + shlex.quote(validation_output) + " --phase all"
         )
         card["resume_command"] = card["launch_command"]
         card["manifest"] = {
-            "validation_profile": "a800",
-            "actual_updates": 20,
+            "validation_profile": platform,
+            "actual_updates": {"actor": 100 if platform == "pro5000" else 20, "critic": 20},
             "actor_batch": 256,
             "critic_batch": 32,
-            "actor_fsdp_devices": 1,
+            "actor_fsdp_devices": actor_fsdp(platform),
             "critic_fsdp_devices": 1,
             "critic_modes": ["all_backbones", "none"],
             "recovery": "10 + 10 versus continuous 20",

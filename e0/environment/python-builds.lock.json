@@ -1,0 +1,40 @@
+[
+  {
+    "key": "cpython-3.10.12-linux-x86_64-gnu",
+    "version": "3.10.12",
+    "version_parts": {
+      "major": 3,
+      "minor": 10,
+      "patch": 12
+    },
+    "path": null,
+    "symlink": null,
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20230726/cpython-3.10.12%2B20230726-x86_64-unknown-linux-gnu-install_only.tar.gz",
+    "os": "linux",
+    "variant": "default",
+    "implementation": "cpython",
+    "arch": "x86_64",
+    "libc": "gnu",
+    "archive": "/mnt/recap-flow-runtime/assets/python-builds/cpython-3.10.12-linux-x86_64-gnu.tar.gz",
+    "sha256": "a476dbca9184df9fc69fe6309cda5ebaf031d27ca9e529852437c94ec1bc43d3"
+  },
+  {
+    "key": "cpython-3.11.9-linux-x86_64-gnu",
+    "version": "3.11.9",
+    "version_parts": {
+      "major": 3,
+      "minor": 11,
+      "patch": 9
+    },
+    "path": null,
+    "symlink": null,
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20240814/cpython-3.11.9%2B20240814-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+    "os": "linux",
+    "variant": "default",
+    "implementation": "cpython",
+    "arch": "x86_64",
+    "libc": "gnu",
+    "archive": "/mnt/recap-flow-runtime/assets/python-builds/cpython-3.11.9-linux-x86_64-gnu.tar.gz",
+    "sha256": "daa487c7e73005c4426ac393273117cf0e2dc4ab9b2eeda366e04cd00eea00c9"
+  }
+]

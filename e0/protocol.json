@@ -62,17 +62,17 @@
   "actor": {
     "global_batch": 256,
     "warmup": 10000,
-    "peak_lr": 0.00005,
-    "end_lr": 0.00005,
+    "peak_lr": 5e-05,
+    "end_lr": 5e-05,
     "clip": 1,
     "ema": 0.999,
-    "fsdp_devices": 1
+    "fsdp_devices": 4
   },
   "critic": {
     "global_batch": 32,
     "warmup": 1000,
-    "peak_lr": 0.000025,
-    "end_lr": 0.0000025,
+    "peak_lr": 2.5e-05,
+    "end_lr": 2.5e-06,
     "clip": 1,
     "ema": 0.99,
     "cosine_decay_steps": "total planned updates",
@@ -139,11 +139,12 @@
     "ood_claim": false
   },
   "deployment": {
-    "developer_host": "cyy_dev",
+    "developer_host": "cyy_dev2",
     "cloud_task_submission": "user manual only",
-    "formal_training": "single node, one JAX process, 8 A800-80G",
+    "formal_training": "single node, one JAX process, 8 PRO5000-72G",
     "sixteen_gpus": "two independent eight-GPU jobs",
-    "final_evaluation": "fixed A800 platform after calibration"
+    "final_evaluation": "fixed PRO5000 platform after calibration",
+    "expansion": "independent eight-GPU nodes, same verified image and release"
   },
   "status": "Implementation in progress; not a declaration of completed audits or experiments"
 }

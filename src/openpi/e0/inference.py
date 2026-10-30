@@ -18,6 +18,9 @@ def serve(manifest, checkpoint, port=8000):
 
     if jax.default_backend() != "gpu":
         raise RuntimeError("policy serving requires GPU")
+    from openpi.e0.platform import validate_devices
+    import os
+    validate_devices(os.environ["E0_PLATFORM"], [d.device_kind for d in jax.devices()], process_count=jax.process_count())
     spec = read_manifest(manifest)
     config = actor_config(spec, inference=True)
     policy = create_trained_policy(
@@ -42,11 +45,15 @@ def serve(manifest, checkpoint, port=8000):
     checkpoint_record = json.loads((Path(checkpoint) / "e0-checkpoint.json").read_text())
     if checkpoint_record["manifest_id"] != spec["manifest_id"]:
         raise ValueError("policy checkpoint and training manifest differ")
+    from openpi.e0.provenance import runtime_identity, validate_loaded_libraries
+
     metadata = dict(
         config.policy_metadata,
         checkpoint=str(checkpoint),
         manifest_id=spec["manifest_id"],
         policy_id=content_id(checkpoint_record),
+        runtime_identity=runtime_identity(),
+        loaded_libraries=validate_loaded_libraries(),
         replay_test="passed",
         replay_action_sha256=__import__("hashlib").sha256(np.ascontiguousarray(first).tobytes()).hexdigest(),
     )

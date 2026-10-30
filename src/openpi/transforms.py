@@ -276,6 +276,10 @@ class TokenizePrompt(DataTransformFn):
         if adv_ind is not None and not isinstance(adv_ind, str):
             adv_ind = adv_ind.item()
 
+        # Explicit research query: exactly the prompt used by training condition dropout.
+        if adv_ind == "unconditional":
+            adv_ind = None
+
         tokens, token_masks = self.tokenizer.tokenize(prompt, state, adv_ind, adv_ind_dropout=self.adv_ind_dropout)
         result = {**data, "tokenized_prompt": tokens, "tokenized_prompt_mask": token_masks}
         if self.adv_guidance_input and adv_ind is not None:

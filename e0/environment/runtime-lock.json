@@ -21,5 +21,28 @@
       "--xla_gpu_enable_triton_gemm=false"
     ],
     "rationale": "Cross-process recovery and policy replay; actual full-model verification required"
+  },
+  "pro5000": {
+    "gpu": "RTX PRO 5000 72GB Blackwell",
+    "gpu_count": 8,
+    "nodes": 1,
+    "driver": "580.126.20",
+    "communication": "HCCL 2.30.4.1",
+    "library": "/usr/lib/x86_64-linux-gnu/libnccl.so.2.30.4",
+    "library_sha256": "37947ee6a4885076b964ffca7cd37c4ebbe0f04600ca6dca86980228a6570ebb",
+    "runtime_script": "e0/environment/pro5000.sh",
+    "actor_fsdp_devices": 4,
+    "critic_fsdp_devices": 1,
+    "determinism": {
+      "NCCL_ALGO": "Ring",
+      "NCCL_PROTO": "Simple",
+      "CUBLAS_WORKSPACE_CONFIG": ":4096:8",
+      "xla_flags": [
+        "--xla_gpu_deterministic_ops=true",
+        "--xla_gpu_autotune_level=1",
+        "--xla_gpu_enable_triton_gemm=false"
+      ],
+      "evidence": "/mnt/recap-flow-runtime/smoke/determinism-ring-autotune1-v2/comparison.json"
+    }
   }
 }

@@ -81,8 +81,12 @@ def read_manifest(path):
     for key, expected in (("H", 10), ("K", 5), ("flow_steps", 10), ("adv_guidance_beta", 1.0)):
         if key in spec and spec[key] != expected:
             raise ValueError(f"{key} differs from E0 protocol")
-    if not spec["smoke"] and spec["kind"] == "actor" and spec["fsdp_devices"] != 1:
-        raise ValueError("formal actor fsdp_devices must be 1")
+    from openpi.e0.platform import actor_fsdp
+
+    platform = spec.get("platform", "a800")
+    expected_fsdp = actor_fsdp(platform) if spec["kind"] == "actor" else 1
+    if not spec["smoke"] and spec["fsdp_devices"] != expected_fsdp:
+        raise ValueError(f"{platform} {spec['kind']} fsdp_devices must be {expected_fsdp}")
     data_path = Path(spec["dataset_manifest"])
     if data_path.resolve() != (Path(spec["data_dir"]) / "e0-manifest.json").resolve():
         raise ValueError("dataset manifest must belong to the actual training data directory")
@@ -183,8 +187,8 @@ def validate_lineage(spec, dataset):
         raise ValueError("E0 must retain every audited demo, unchanged, in every training pool")
     if not spec["smoke"] and any(e.get("smoke", False) for e in sources):
         raise ValueError("smoke trajectories cannot enter pilot or formal training")
-    if any(e["source"] in ("development", "final") for e in sources):
-        raise ValueError("development/final data leaked into training")
+    if any(e["source"] not in ("demo", "rollout", "intervention") for e in sources):
+        raise ValueError("development/final/research or unknown data leaked into training")
     if spec["stage"] == "sft" and any(e["source"] != "demo" for e in sources):
         raise ValueError("SFT must use demos only")
     for e in sources:

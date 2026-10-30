@@ -64,8 +64,8 @@ def verify_recovery(control, path, env, log):
     if json.loads((b / "expected-state-10.json").read_text()) != json.loads((b / "resumed-state-10.json").read_text()):
         raise AssertionError("restored optimizer/params/EMA/step differs from the saved state")
     left, right = read_jsonl(a / "metrics.jsonl"), read_jsonl(b / "metrics.jsonl")
-    if len(left) != 20 or len(right) != 20:
-        raise AssertionError("recovery did not complete 20 updates")
+    if len(left) != reference["num_train_steps"] or len(right) != reference["num_train_steps"]:
+        raise AssertionError("recovery did not complete planned updates")
     for x, y in zip(left, right, strict=True):
         ignored = {"elapsed_seconds", "session_id"}
         if {k: v for k, v in x.items() if k not in ignored} != {k: v for k, v in y.items() if k not in ignored}:
@@ -76,7 +76,7 @@ def verify_recovery(control, path, env, log):
         Path(path).with_suffix(".verified.json"),
         {
             "complete": True,
-            "updates": 20,
+            "updates": reference["num_train_steps"],
             "interrupted_after": 10,
             "full_state_bitwise_equal": True,
             "batches_and_metrics_equal": True,
@@ -254,6 +254,8 @@ def closed_loop(paths, env, output):
     output = Path(output)
     log = output / "closed-loop.log"
     actor, pool, datasets = collect_data(paths, env, output)
+    command(["replay-check", "--results", output / "rollout/results", "--output", output / "replay-passed.json"],
+            log, dict(env, MUJOCO_EGL_DEVICE_ID="0"))
     critic = json.loads(Path(paths[1]).read_text())
     critic.update(
         id=critic["id"] + "-loop",
@@ -289,6 +291,7 @@ def closed_loop(paths, env, output):
     if not (labeled / "e0-manifest.json").exists():
         command(["label", "--source", pool, "--predictions", output / "prediction", "--output", labeled], log, env)
     actor.update(
+        num_train_steps=20, checkpoint_updates=[20],
         id=actor["id"] + "-r1-loop",
         run_dir=actor["run_dir"] + "-r1-loop",
         stage="r1",
@@ -321,7 +324,7 @@ def closed_loop(paths, env, output):
 
 
 def smoke(platform, output, phase="all", jobs_index=None):
-    if platform not in ("cyy_dev", "a800"):
+    if platform not in ("cyy_dev", "a800", "pro5000"):
         raise ValueError(platform)
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
@@ -337,6 +340,8 @@ def smoke(platform, output, phase="all", jobs_index=None):
             command(["preflight", "--output", output / "train-preflight.json"], log, env)
             for gpu in range(4 if platform == "cyy_dev" else 8):
                 command(["egl", "--output", output / f"egl-{gpu}.json"], log, dict(env, MUJOCO_EGL_DEVICE_ID=str(gpu)))
+            command(["schema", "--output", output / "schema-train.json"], log, env)
+            command(["schema-libero", "--output", output / "schema-libero.json"], log, env)
             command(["test"], log, env)
         elif part == "training":
             for path in paths:

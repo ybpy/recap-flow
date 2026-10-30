@@ -119,10 +119,13 @@ def run(manifest_path, *, resume=False, stop_after=None):
     spec = read_manifest(manifest_path)
     if jax.default_backend() != "gpu":
         raise RuntimeError("E0 training requires GPU; CPU fallback is forbidden")
-    if not spec["smoke"] and (jax.device_count() != 8 or any("A800" not in d.device_kind for d in jax.devices())):
-        raise ValueError(
-            "E0 pilot/formal training requires one node with 8 A800 GPUs; use an explicit smoke manifest for debugging"
-        )
+    from openpi.e0.platform import validate_training
+    from openpi.e0.provenance import runtime_identity
+
+    validate_training(spec, jax)
+    from openpi.e0.provenance import validate_loaded_libraries
+    validate_loaded_libraries()
+    current_runtime = runtime_identity()
     if spec["batch_size"] % jax.device_count():
         raise ValueError("global batch must be divisible by visible GPUs")
     dataset_manifest = json.loads(Path(spec["dataset_manifest"]).read_text())
@@ -138,6 +141,8 @@ def run(manifest_path, *, resume=False, stop_after=None):
         from openpi.e0.provenance import code_record
 
         previous = json.loads((run_dir / "provenance.json").read_text())
+        if previous.get("runtime_identity") != current_runtime:
+            raise ValueError("resume runtime differs from the checkpoint run")
         if previous["code"]["source_id"] != code_record(ROOT)["source_id"]:
             raise ValueError("resume code differs from the checkpoint run; use the recorded code snapshot")
     else:
@@ -155,6 +160,7 @@ def run(manifest_path, *, resume=False, stop_after=None):
             {
                 "code": source_record,
                 "environment": environment_record(),
+                "runtime_identity": current_runtime,
                 "source_archive_sha256": sha256_file(run_dir / "source.tar.gz"),
             },
         )
@@ -312,6 +318,8 @@ def run(manifest_path, *, resume=False, stop_after=None):
         with sharding.set_mesh(mesh):
             state, metrics = compiled(train_rng, state, batch)
         metrics = {key: float(x) for key, x in jax.device_get(metrics).items()}
+        if index == start:
+            write_json(run_dir / "loaded-libraries.json", validate_loaded_libraries())
         if not all(np.isfinite(value) for value in metrics.values()):
             raise FloatingPointError(f"nonfinite training metric after update {index + 1}: {metrics}")
         completed = index + 1
@@ -362,6 +370,7 @@ def run(manifest_path, *, resume=False, stop_after=None):
             "planned_updates": spec["num_train_steps"],
             "complete": int(state.step) == spec["num_train_steps"],
             "smoke": spec["smoke"],
+            "device_memory": {str(d): d.memory_stats() for d in jax.devices()},
         },
     )
     return state

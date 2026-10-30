@@ -12,9 +12,10 @@ export TMPDIR="$RECAP_RUNTIME/tmp"
 mkdir -p "$TMPDIR" "$UV_CACHE_DIR"
 cd "$ROOT"
 git -c http.proxy="${https_proxy:-}" submodule update --init third_party/libero
-uv python install 3.11.9
+[[ "$(uv --version)" == "uv 0.10.4" ]] || { echo "uv 0.10.4 required" >&2; exit 2; }
+uv python install 3.11.9 3.10.12
 uv venv --allow-existing --python 3.11.9 .venv-train
-uv venv --allow-existing --python /usr/bin/python3.10 .venv-libero
+uv venv --allow-existing --python "$UV_PYTHON_INSTALL_DIR/cpython-3.10.12-linux-x86_64-gnu/bin/python3.10" .venv-libero
 for name in train libero; do
   uv pip sync --python "$ROOT/.venv-$name/bin/python" --link-mode copy "e0/environment/$name.lock"
   "$ROOT/.venv-$name/bin/python" "$ROOT/e0/environment/repair_decord_tag.py"

@@ -83,6 +83,7 @@ def one_episode(spec, host, port, timeout, expected_policy_id=None):
         raise ValueError("official initial-state inventory must contain 50 entries")
     env, client = None, None
     steps, success, error = [], False, None
+    decisions = []
     try:
         client = Client(host, port, timeout)
         if expected_policy_id and client.metadata.get("policy_id") != expected_policy_id:
@@ -126,11 +127,22 @@ def one_episode(spec, host, port, timeout, expected_policy_id=None):
                     "adv_ind": "positive",
                     "sampling_seed": stable_seed(spec["sampling_seed"], decision),
                 }
-                queue.extend(client.infer(request)[:K])
+                chunk = client.infer(request)
+                decisions.append({
+                    "decision_index": decision,
+                    "start_step": len(steps),
+                    "end_step": len(steps),
+                    "sampling_seed": request["sampling_seed"],
+                    "actions": chunk.tolist(),
+                    "policy_id": client.metadata["policy_id"],
+                    "checkpoint": client.metadata.get("checkpoint"),
+                })
+                queue.extend(chunk[:K])
                 decision += 1
             action = queue.popleft()
             next_obs, _, done, _ = env.step(action.tolist())
             steps.append({"image": image, "wrist_image": wrist, "state": state, "actions": action})
+            decisions[-1]["end_step"] = len(steps)
             observation = next_obs
             if done:
                 success = True
@@ -148,6 +160,7 @@ def one_episode(spec, host, port, timeout, expected_policy_id=None):
         "status": "policy_failure" if error else "ok",
         "error": error,
         "prompt": str(task.language),
+        "decisions": decisions,
     }
 
 
@@ -242,6 +255,13 @@ def run(manifest_path, output, host="127.0.0.1", port=8000, shard=0, shards=1, t
                     np.savez_compressed(temporary, **{k: np.stack([s[k] for s in steps]) for k in steps[0]})
                     temporary.replace(trajectory_path)
                     result["trajectory"] = str(trajectory_path)
+                decisions = result.pop("decisions", None)
+                if decisions is not None:
+                    decision_path = root / "decisions" / (key + ".json")
+                    write_json(decision_path, {"episode_uid": spec["episode_uid"],
+                               "policy_id": protocol["policy_id"], "H": H, "K": K,
+                               "decisions": decisions})
+                    result["decisions_path"] = str(decision_path)
                 write_json(result_path, result)
                 journal["attempts"][-1].update(status="committed")
                 write_json(journal_path, journal)

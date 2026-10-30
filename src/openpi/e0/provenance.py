@@ -48,6 +48,13 @@ def environment_record():
         "JAX_ENABLE_COMPILATION_CACHE",
         "E0_PLATFORM",
         "LD_PRELOAD",
+        "LD_LIBRARY_PATH",
+        "NCCL_PCI_SEARCH_FIX",
+        "NCCL_ALGO",
+        "CUBLAS_WORKSPACE_CONFIG",
+        "NCCL_P2P_LEVEL",
+        "NCCL_IB_DISABLE",
+        "NCCL_SOCKET_IFNAME",
         "__EGL_VENDOR_LIBRARY_FILENAMES",
     )
     packages = {d.metadata["Name"]: d.version for d in importlib.metadata.distributions()}
@@ -64,6 +71,46 @@ def environment_record():
         "environment": {k: os.environ[k] for k in keys if k in os.environ},
         "gpus": gpu,
     }
+
+
+def runtime_identity():
+    """Portable across identical nodes; excludes GPU UUIDs and transient process IDs."""
+    import sys
+
+    root = Path(__file__).resolve().parents[3]
+    record = environment_record()
+    keys = {k: v for k, v in os.environ.items() if k.startswith("NCCL_") and k != "NCCL_DEBUG"}
+    identity = {
+        "python": sys.version,
+        "python_binary_sha256": sha256_file(Path(sys.executable).resolve()),
+        "packages": record["packages"],
+        "gpu_models_drivers_memory": [line.split(",", 1)[1].strip() for line in record["gpus"]],
+        "environment": record["environment"],
+        "communication_variables": keys,
+        "preloaded_libraries": {p: sha256_file(Path(p).resolve())
+                                for p in os.environ.get("LD_PRELOAD", "").split(":") if p},
+        "host_driver_libraries": {name: sha256_file(Path("/usr/lib/x86_64-linux-gnu") / name)
+                                  for name in ("libcuda.so.1", "libnvidia-ptxjitcompiler.so.1")},
+        "locks": {name: sha256_file(root / "e0/environment" / name)
+                  for name in ("train.lock", "libero.lock", "runtime-lock.json")},
+    }
+    identity["runtime_id"] = content_id(identity)
+    return identity
+
+
+def validate_loaded_libraries():
+    libraries = sorted({line.split()[-1] for line in Path("/proc/self/maps").read_text().splitlines()
+                        if any(name in line for name in ("libcuda.so", "libcudart.so", "libcublas.so", "libcudnn.so", "libnccl.so"))})
+    if os.environ.get("E0_PLATFORM") == "pro5000":
+        if any("/compat/" in name or "/python3.12/" in name for name in libraries):
+            raise RuntimeError(f"unexpected CUDA compatibility/image Python library loaded: {libraries}")
+        driver = [name for name in libraries if "libcuda.so" in name]
+        if not driver or any(not name.endswith("libcuda.so.580.126.20") for name in driver):
+            raise RuntimeError(f"PRO5000 driver library differs from frozen driver: {driver}")
+        nccl = [name for name in libraries if "libnccl.so" in name]
+        if nccl != ["/usr/lib/x86_64-linux-gnu/libnccl.so.2.30.4"]:
+            raise RuntimeError(f"unexpected communication libraries: {nccl}")
+    return libraries
 
 
 def archive_code(root, record, destination):

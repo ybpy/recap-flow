@@ -63,7 +63,7 @@ def evaluate(
     devices = list(map(int, devices))
     if not devices or len(set(devices)) != len(devices) or min(devices) < 0 or workers_per_device < 1:
         raise ValueError("invalid GPU/worker partition")
-    if platform not in ("cyy_dev", "a800"):
+    if platform not in ("cyy_dev", "a800", "pro5000"):
         raise ValueError(platform)
     checkpoint = Path(checkpoint)
     checkpoint_metadata = json.loads((checkpoint / "e0-checkpoint.json").read_text())

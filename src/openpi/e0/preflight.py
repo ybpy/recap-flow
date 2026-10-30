@@ -17,6 +17,10 @@ def train_environment(output):
     devices = jax.devices("gpu")
     if not devices:
         raise RuntimeError("no JAX GPUs")
+    from openpi.e0.platform import validate_devices
+    import os
+    validate_devices(os.environ["E0_PLATFORM"], [d.device_kind for d in devices],
+                     process_count=jax.process_count(), training=True)
     gpu_results = []
     for device in devices:
         import numpy as np
@@ -31,6 +35,10 @@ def train_environment(output):
     for i in range(torch.cuda.device_count()):
         value = torch.ones((256, 256), device=f"cuda:{i}") @ torch.ones((256, 256), device=f"cuda:{i}")
         assert value[0, 0].item() == 256.0
+    import runpy
+    runpy.run_path(str(Path(__file__).resolve().parents[3] / "e0/environment/gpu_collective_probe.py"), run_name="__main__")
+    from openpi.e0.provenance import validate_loaded_libraries
+    libraries = validate_loaded_libraries()
     import lerobot
     import openpi_client
 
@@ -73,6 +81,7 @@ def train_environment(output):
         "imports": paths,
         "versions": versions,
         "devices": gpu_results,
+        "loaded_libraries": libraries,
         "git_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
         "environment_lock_sha256": sha256_file(root / "e0/environment/train.lock"),
     }
