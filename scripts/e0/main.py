@@ -24,7 +24,7 @@ def main():
     p.add_argument("--suites", nargs="+", default=["libero_10"])
     p.add_argument("--groups", nargs="+", type=int, default=[0])
     p.add_argument("--attempts", type=int, default=50)
-    p.add_argument("--purpose", choices=["rollout", "development", "final", "smoke"], required=True)
+    p.add_argument("--purpose", choices=["rollout", "development", "final", "smoke", "review"], required=True)
     p.add_argument("--training-seed", type=int, required=True)
     p = sub.add_parser("rollout")
     p.add_argument("manifest")
@@ -56,12 +56,13 @@ def main():
     p.add_argument("--output", required=True)
     p.add_argument("--batch-size", type=int, default=32)
     p.add_argument("--autonomous-only", action="store_true")
+    p.add_argument("--review", action="store_true")
     p = sub.add_parser("convert-rollouts")
     p.add_argument("--episode-manifest", required=True)
     p.add_argument("--results-dir", required=True)
     p.add_argument("--demo-dir", required=True)
     p.add_argument("--output", required=True)
-    p.add_argument("--purpose", choices=["rollout", "development", "final"], required=True)
+    p.add_argument("--purpose", choices=["rollout", "development", "final", "review"], required=True)
     p.add_argument("--branch", choices=["shared", "base_reset", "warm_start"], required=True)
     p.add_argument("--round-index", type=int, required=True)
     p.add_argument("--suite")
@@ -133,6 +134,9 @@ def main():
     p.add_argument("--results", required=True)
     p.add_argument("--namespace", required=True)
     p.add_argument("--output", required=True)
+    p = sub.add_parser("critic-study")
+    p.add_argument("--output", default="/mnt/recap-flow-runtime/critic-study/s42-v1")
+    p.add_argument("--wait", action="store_true")
     p = sub.add_parser("research-labels")
     p.add_argument("--datasets", nargs="+", required=True)
     p.add_argument("--output", required=True)
@@ -157,7 +161,11 @@ def main():
     p.add_argument("--timeout", type=int, default=120)
     args = vars(parser.parse_args())
     command = args.pop("command")
-    if command == "migration-audit":
+    if command == "critic-study":
+        from openpi.e0.critic_study import run
+
+        run(**args)
+    elif command == "migration-audit":
         from openpi.e0.migration import audit
 
         audit(**args)

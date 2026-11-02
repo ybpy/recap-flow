@@ -98,6 +98,14 @@ def read_manifest(path):
     if spec.get("dataset_id", dataset["dataset_id"]) != dataset["dataset_id"]:
         raise ValueError("dataset version differs from the sealed task manifest")
     spec["dataset_id"] = dataset["dataset_id"]
+    if "reward_protocol" in spec or "reward_protocol_id" in spec:
+        if spec["kind"] != "critic" or not spec.get("reward_protocol") or not spec.get("reward_protocol_id"):
+            raise ValueError("study supervision requires an explicit critic protocol and checksum")
+        protocol = json.loads(Path(spec["reward_protocol"]).read_text())
+        identity = protocol.pop("protocol_id")
+        if (content_id(protocol) != identity or identity != spec["reward_protocol_id"]
+                or protocol["scales"]["train_dataset_id"] != spec["dataset_id"]):
+            raise ValueError("critic task bound to a different supervision protocol")
     if spec["kind"] == "actor":
         for name in ("initialization", "initial_params", "norm_assets"):
             if name not in spec:

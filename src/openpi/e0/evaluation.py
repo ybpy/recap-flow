@@ -57,7 +57,7 @@ def evaluate(
         purpose = next(iter(purposes))
         suites = SUITES if purpose == "development" and spec["stage"] == "sft" else ["libero_10"]
         groups = [0, 1, 2] if purpose == "final" else [0]
-        if purpose not in ("development", "final", "rollout"):
+        if purpose not in ("development", "final", "rollout", "review"):
             raise ValueError("non-smoke episode purpose required")
         validate_grid(rows, suites, groups, purpose)
     devices = list(map(int, devices))

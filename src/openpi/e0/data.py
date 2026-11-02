@@ -41,7 +41,7 @@ def convert_rollouts(episode_manifest, results_dir, demo_dir, output, purpose, b
         raise ValueError(f"attempt set incomplete: {summary}")
     if any(row.get("purpose") not in (purpose, "smoke") for row in expected):
         raise ValueError("episode namespace cannot be repurposed as another data source")
-    if purpose not in ("rollout", "development", "final"):
+    if purpose not in ("rollout", "development", "final", "review"):
         raise ValueError("invalid provenance purpose")
     demo_dir, output = Path(demo_dir), Path(output)
     info = json.loads((demo_dir / "meta/info.json").read_text())
@@ -128,7 +128,7 @@ def merge(sources, output):
         raise FileExistsError(output)
     manifests = [json.loads((p / "e0-manifest.json").read_text()) for p in sources]
     training = any(e["source"] in ("demo", "rollout") for m in manifests for e in m["episodes"])
-    validation = any(e["source"] in ("development", "final") for m in manifests for e in m["episodes"])
+    validation = any(e["source"] in ("development", "final", "review") for m in manifests for e in m["episodes"])
     if training and validation:
         raise ValueError("cannot mix training and evaluation trajectories")
     first = sources[0]
@@ -214,6 +214,8 @@ def relabel(source, predictions, output):
         raise FileExistsError(output)
     manifest = json.loads((source / "e0-manifest.json").read_text())
     pred = json.loads((predictions / "predictions.json").read_text())
+    if pred.get("reward_protocol_id"):
+        raise ValueError("study predictions require matching reward sidecars and frozen study thresholds")
     if pred["dataset_id"] != manifest["dataset_id"]:
         raise ValueError("predictions belong to a different data snapshot")
     by_uid = {e["episode_uid"]: e for e in pred["episodes"]}

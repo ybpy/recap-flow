@@ -279,6 +279,11 @@ def run(manifest_path, *, resume=False, stop_after=None):
         write_json(run_dir / name, state_fingerprints(state))
     dataset = dl.create_torch_dataset(data_config, model_config.action_horizon, model_config)
     dataset = dl.transform_dataset(dataset, data_config, skip_norm_stats=spec["kind"] == "critic")
+    if spec.get("reward_protocol"):
+        from openpi.e0.reward_study import ValueDataset, load_labels
+
+        labels, scale = load_labels(spec, dataset_manifest, "train")
+        dataset = ValueDataset(dataset, labels, scale)
     stream = FrameStream.from_manifest(
         spec["dataset_manifest"], spec["seed"], "sft" if spec["stage"] == "sft" else "recap"
     )

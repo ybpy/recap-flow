@@ -67,6 +67,10 @@ def critic(training_manifest, predictions, output):
     rows, validation_id = [], None
     for path in predictions:
         report = json.loads((Path(path) / "predictions.json").read_text())
+        if (report.get("role", "validation") != "validation"
+                or report.get("reward_protocol_id") != spec.get("reward_protocol_id")
+                or report["manifest_id"] != spec["manifest_id"]):
+            raise ValueError("wrong critic selection split or reward protocol")
         checkpoint = Path(report["checkpoint"])
         metadata = json.loads((checkpoint / "e0-checkpoint.json").read_text())
         if metadata["manifest_id"] != spec["manifest_id"]:

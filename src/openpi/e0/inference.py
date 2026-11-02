@@ -60,7 +60,7 @@ def serve(manifest, checkpoint, port=8000):
     WebsocketPolicyServer(policy, host="127.0.0.1", port=port, metadata=metadata).serve_forever()
 
 
-def critic_predictions(manifest, checkpoint, data_dir, output, *, batch_size=32, autonomous_only=False):
+def critic_predictions(manifest, checkpoint, data_dir, output, *, batch_size=32, autonomous_only=False, review=False):
     from collections import defaultdict
     import sys
 
@@ -85,11 +85,14 @@ def critic_predictions(manifest, checkpoint, data_dir, output, *, batch_size=32,
         raise ValueError("critic checkpoint and training manifest differ")
     dataset_manifest = json.loads((Path(data_dir) / "e0-manifest.json").read_text())
     sources = {e["source"] for e in dataset_manifest["episodes"]}
+    role = "train" if autonomous_only else "review" if review else "validation"
+    if review and (autonomous_only or not spec.get("reward_protocol")):
+        raise ValueError("independent review requires a registered critic study")
     if autonomous_only:
         if not sources <= {"demo", "rollout"}:
             raise ValueError("relabel predictions must be made on the cumulative training pool")
     else:
-        if sources != {"development"}:
+        if sources != ({"review"} if review else {"development"}):
             raise ValueError("critic validation must use independent development trajectories")
         present = {e["task_index"] for e in dataset_manifest["episodes"]}
         if present != set(dataset_manifest["long_task_indices"]):
@@ -97,6 +100,13 @@ def critic_predictions(manifest, checkpoint, data_dir, output, *, batch_size=32,
     config = ValueModelConfig()
     data_config = train_value.build_value_data_config(data_dir, config, tokenizer_path=spec["tokenizer_path"])
     dataset = dl.transform_dataset(dl.create_torch_dataset(data_config, 1, config), data_config, skip_norm_stats=True)
+    scale = 1.0
+    if spec.get("reward_protocol"):
+        from openpi.e0.reward_study import ValueDataset, load_labels, load_dataset
+
+        dataset_manifest = load_dataset(data_dir)
+        labels, scale = load_labels(spec, dataset_manifest, role)
+        dataset = ValueDataset(dataset, labels, scale)
     model = config.load(model_api.restore_params(Path(checkpoint) / "params"))
     model.eval()
     graph, params = nnx.split(model)
@@ -131,8 +141,12 @@ def critic_predictions(manifest, checkpoint, data_dir, output, *, batch_size=32,
         if not np.isfinite(values).all() or not np.isfinite(losses).all():
             raise FloatingPointError("critic produced nonfinite values/CE")
         name = f"episode_{episode['episode_index']:06d}.npy"
-        np.save(out / name, np.asarray(values, np.float32))
+        np.save(out / name, np.asarray(values, np.float32) * scale)
         records.append({"episode_uid": episode["episode_uid"], "path": name, "length": length})
+        if spec.get("reward_protocol"):
+            loss_name = "ce_" + name
+            np.save(out / loss_name, np.asarray(losses, np.float32))
+            records[-1]["ce_path"] = loss_name
         task_ce[str(episode["task_index"])].extend(losses)
         offset += length
     scores = {key: float(np.mean(value)) for key, value in task_ce.items()}
@@ -145,5 +159,8 @@ def critic_predictions(manifest, checkpoint, data_dir, output, *, batch_size=32,
             "episodes": records,
             "task_ce": scores,
             "macro_ce": float(np.mean(list(scores.values()))),
+            "role": role,
+            "reward_protocol_id": spec.get("reward_protocol_id"),
+            "prediction_units": "reward",
         },
     )
