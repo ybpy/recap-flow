@@ -3,7 +3,7 @@ import pytest
 from openpi_client.e0.protocol import advantages, trajectory_labels
 
 from openpi.e0.critic_report import parts, estimates
-from openpi.e0.reward_study import METHODS, fit_scales, targets, save_labels, load_labels, ValueDataset
+from openpi.e0.reward_study import CLIP_METHODS, METHODS, fit_scales, targets, save_labels, load_labels, ValueDataset
 
 
 @pytest.fixture
@@ -64,3 +64,41 @@ def test_episode_intervals_are_paired():
     metrics = {"u": {"d": 0.0}, "v": {"d": 0.0}, "x": {"d": 1.0}}
     attempts = {"u": {"task_id": 0}, "v": {"task_id": 0}, "x": {"task_id": 1}}
     assert estimates(metrics, attempts)["macro"]["d"] == dict(mean=0.5, ci95=[0.5, 0.5], tasks=2)
+
+
+@pytest.mark.parametrize("method", CLIP_METHODS)
+def test_exact_clip_boundaries_and_advantage(method, tmp_path):
+    pool = dict(
+        dataset_id="training",
+        long_task_indices=[0],
+        episodes=[dict(episode_uid="timeout", source="rollout", task_index=0, length=520, success=False)],
+    )
+    scales = fit_scales(pool)
+    assert scales["head_scale"] > 1
+    protocol = save_labels(tmp_path, method, scales, {"train": pool})
+    assert protocol["scale"] == 1.0
+    spec = dict(
+        reward_protocol=str(tmp_path / "protocol.json"),
+        reward_protocol_id=protocol["protocol_id"],
+        dataset_id="training",
+    )
+    rows, scale = load_labels(spec, pool, "train")
+    reward, label, raw = rows.T
+    assert raw[258] < raw[259] == -1 and raw[260] > -1
+    np.testing.assert_array_equal(label, np.clip(raw, -1, 0))
+    ds = ValueDataset([{"value": np.zeros(1)} for _ in rows], rows, scale)
+    np.testing.assert_array_equal([ds[t]["value"].item() for t in range(520)], label)
+    pred = np.full(520, -1.0)
+    pred[-1] = -0.75
+    window, delta, adv = parts(reward, pred)
+    np.testing.assert_allclose(
+        [window[0], delta[0], adv[0], adv[-51], adv[-2], adv[-1]],
+        [-50 / 520, 0, -50 / 520, -50 / 520 + 0.25, 0.5 - 1 / 520, 0.25],
+        atol=1e-7,
+    )
+    for success, terminal_reward in ((True, 0), (False, -0.5)):
+        r, y, g = targets(method, 1, success, 0, scales).T
+        assert r[0] == y[0] == g[0] == terminal_reward
+        assert parts(r, [-0.8])[2][0] == pytest.approx(terminal_reward + 0.8)
+    r, y, g = targets(method, 600, True, 0, scales).T
+    assert g[0] < -1 and y[0] == -1 and y[-1] == 0

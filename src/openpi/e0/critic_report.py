@@ -10,7 +10,7 @@ from scipy.stats import spearmanr
 from openpi_client.e0.artifacts import content_id, write_json
 from openpi_client.e0.protocol import LOOKAHEAD
 
-from openpi.e0.reward_study import METHODS, MODES, load_dataset, load_labels
+from openpi.e0.reward_study import CLIP_METHODS, METHODS, MODES, load_dataset, load_labels
 
 
 def read(path):
@@ -66,7 +66,7 @@ def analyze_model(base, dest, data):
     statistics = {}
     for role in ("train", "review"):
         manifest = data[role]
-        labels, _ = load_labels(spec, manifest, role)
+        labels, head_scale = load_labels(spec, manifest, role)
         prediction = read(base / role / "predictions.json")
         if (
             prediction["reward_protocol_id"] != spec["reward_protocol_id"]
@@ -87,7 +87,8 @@ def analyze_model(base, dest, data):
             )
         for ep in manifest["episodes"]:
             n, uid, task = ep["length"], ep["episode_uid"], ep["task_index"]
-            rewards, target = labels[offset : offset + n].T
+            episode_labels = labels[offset : offset + n]
+            rewards, target = episode_labels[:, :2].T
             offset += n
             if ep["source"] == "demo":
                 continue
@@ -96,9 +97,17 @@ def analyze_model(base, dest, data):
             ce = np.load(base / role / record["ce_path"], allow_pickle=False)
             if record["length"] != n or value.shape != (n,) or ce.shape != (n,) or not np.isfinite([value, ce]).all():
                 raise ValueError(f"unaligned or non-finite {uid}")
+            if episode_labels.shape[1] == 3 and (head_scale != 1 or value.min() < -1.000001 or value.max() > 0.000001):
+                raise ValueError("direct-clip predictor has invalid scale or output")
             window, delta, advantage = parts(rewards, value)
             per_task[task].append(advantage)
             if role == "review":
+                if episode_labels.shape[1] == 3:
+                    before = episode_labels[:, 2]
+                elif name.startswith("legacy_episode-"):
+                    before = np.cumsum(rewards[::-1], dtype=np.float64)[::-1].astype(np.float32)
+                else:
+                    before = target
                 threshold = thresholds[str(task)]
                 positive = advantage >= threshold
                 time_value = np.asarray([clock.get((task, t // 50), clock[task, -1]) for t in range(n)])
@@ -109,6 +118,10 @@ def analyze_model(base, dest, data):
                     reward=rewards,
                     target=target,
                     value=value,
+                    return_before_clip=before,
+                    value_target=target,
+                    head_target=target / head_scale,
+                    value_pred=value,
                     ce=ce,
                     clock=time_value,
                     window_reward=window,
@@ -117,7 +130,16 @@ def analyze_model(base, dest, data):
                     positive=positive,
                     threshold=np.float64(threshold),
                 )
-                frames[uid] = dict(path=file, advantage=advantage, positive=positive, error=error, ce=ce)
+                frames[uid] = dict(
+                    path=file,
+                    advantage=advantage,
+                    positive=positive,
+                    error=error,
+                    ce=ce,
+                    value=value,
+                    before=before,
+                    threshold=threshold,
+                )
                 stats = dict(
                     ce=float(ce.mean()),
                     mae=float(np.abs(error).mean()),
@@ -225,21 +247,23 @@ def estimates(metrics, attempts, seed=42):
     return dict(by_task=result, macro=overall)
 
 
-def report(work, dest):
+def report(work, dest, parent=None):
     from openpi.e0.critic_gallery import gallery
 
     dest.mkdir(parents=True, exist_ok=True)
-    data = {k: load_dataset(work / d) for k, d in (("train", "pool"), ("review", "review"))}
+    source = parent or work
+    data = {k: load_dataset(source / d) for k, d in (("train", "pool"), ("review", "review"))}
     attempts = {
-        r["episode_uid"]: r for r in (read(p) for p in (work / "review-evaluation/results/attempts").glob("*.json"))
+        r["episode_uid"]: r for r in (read(p) for p in (source / "review-evaluation/results/attempts").glob("*.json"))
     }
     ids = {e["episode_uid"] for e in data["review"]["episodes"]}
     if ids != {u for u, r in attempts.items() if r["policy_steps"]}:
         raise ValueError("review ledger/frame coverage differs")
-    names = [f"{m}-{f}" for m in METHODS for f in MODES]
+    names = [f"{m}-{f}" for m in (METHODS + CLIP_METHODS if parent else METHODS) for f in MODES]
     summaries, all_frames = {}, {}
     for name in names:
-        frames, metrics = analyze_model(work / name, dest, data)
+        base = (source if name.split("-")[0] in METHODS else work) / name
+        frames, metrics = analyze_model(base, dest, data)
         if frames.keys() != ids:
             raise ValueError("incomplete paired inference")
         all_frames[name] = frames
@@ -252,7 +276,7 @@ def report(work, dest):
         summaries[name] = {g: estimates({u: metrics[u] for u in selected}, attempts) for g, selected in strata.items()}
         for g, selected in strata.items():
             summaries[name][g]["observed_frame_fraction"] = frame_rates(frames, attempts, selected)
-        summaries[name]["selection"] = read(work / name / "selection.json")
+        summaries[name]["selection"] = read(base / "selection.json")
     pairs = {}
     for l, r in combinations(names, 2):
         same_method = l.split("-")[0] == r.split("-")[0]
@@ -289,4 +313,10 @@ def report(work, dest):
         target_differences=read(work / "target-differences.json"),
     )
     write_json(dest / "study.json", summary)
-    gallery(dest, names, attempts, all_frames, summary)
+    prior_gallery = None
+    if parent:
+        from openpi.e0.clip_comparison import compare
+
+        compare(dest, all_frames, attempts, summary)
+        prior_gallery = read(parent / "report/gallery.json")
+    gallery(dest, names, attempts, all_frames, summary, prior_gallery=prior_gallery)

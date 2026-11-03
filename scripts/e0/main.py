@@ -135,6 +135,7 @@ def main():
     p.add_argument("--namespace", required=True)
     p.add_argument("--output", required=True)
     p = sub.add_parser("critic-study")
+    p.add_argument("--clip-from", help="completed seed-42 study providing the sealed data and six reference critics")
     p.add_argument("--output", default="/mnt/recap-flow-runtime/critic-study/s42-v1")
     p.add_argument("--wait", action="store_true")
     p = sub.add_parser("research-labels")

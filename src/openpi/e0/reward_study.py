@@ -8,6 +8,7 @@ from openpi_client.e0.artifacts import content_id, sha256_file, write_json
 from openpi_client.e0.protocol import LIMITS, trajectory_labels
 
 METHODS = ("legacy_episode", "task_pool_max", "global_pool_max")
+CLIP_METHODS = ("task_pool_max_clip", "global_pool_max_clip")
 MODES = ("all_backbones", "none")
 
 
@@ -19,12 +20,14 @@ def fit_scales(pool):
         task = str(ep["task_index"])
         maxima[task] = max(maxima.get(task, 0), ep["length"])
     scale = max(1.5, *(0.5 + (LIMITS["libero_10"] - 1) / maxima[str(j)] for j in pool["long_task_indices"]))
-    return dict(
-        train_dataset_id=pool["dataset_id"], task_max=maxima, global_max=max(maxima.values()), head_scale=scale
-    )
+    return dict(train_dataset_id=pool["dataset_id"], task_max=maxima, global_max=max(maxima.values()), head_scale=scale)
 
 
 def targets(method, length, success, task, scales):
+    if method in CLIP_METHODS:
+        original = targets(method.removesuffix("_clip"), length, success, task, scales)
+        reward, return_before_clip = original.T
+        return np.column_stack((reward, np.clip(return_before_clip, -1, 0), return_before_clip))
     if method == "legacy_episode":
         labels = trajectory_labels(length, success)
         return np.column_stack((labels["reward_label"], labels["value_label"]))
@@ -48,6 +51,11 @@ def save_labels(directory, method, scales, datasets):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     record = dict(method=method, scales=scales, scale=1.0 if method == METHODS[0] else scales["head_scale"], splits={})
+    if method in CLIP_METHODS:
+        record.update(
+            scales={k: v for k, v in scales.items() if k != "head_scale"},
+            scale=1.0, fields=["reward", "value_target", "return_before_clip"], transform="clip_return_to_unit_support"
+        )
     for split, data in datasets.items():
         rows, index, offset = [], [], 0
         for ep in data["episodes"]:

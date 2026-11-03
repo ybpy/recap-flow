@@ -13,7 +13,16 @@ import numpy as np
 from openpi_client.e0.artifacts import content_id, read_jsonl, write_json, write_jsonl
 from openpi_client.e0.protocol import episodes, summarize_attempts, validate_grid
 
-from openpi.e0.reward_study import METHODS, MODES, fit_scales, load_dataset, save_labels, targets
+from openpi.e0.reward_study import (
+    CLIP_METHODS,
+    METHODS,
+    MODES,
+    fit_scales,
+    load_dataset,
+    load_labels,
+    save_labels,
+    targets,
+)
 
 RT = Path("/mnt/recap-flow-runtime")
 P2 = RT / "evaluation/pilot-s42-sft-pro5000"
@@ -72,8 +81,11 @@ def difference_report(pool, scales):
     return dict(scales=scales, by_task=report)
 
 
-def run(output, wait=False):
+def run(output, wait=False, clip_from=None):
     work = Path(output).resolve()
+    parent = Path(clip_from).resolve() if clip_from else None
+    if parent and (work == parent or parent in work.parents or work in parent.parents):
+        raise ValueError("clip supplement needs a separate sibling study directory")
     work.mkdir(parents=True, exist_ok=True)
     with (work / "study.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -82,6 +94,13 @@ def run(output, wait=False):
             write_json(work / "status.json", dict(phase=phase, unix=time.time(), **info))
 
         try:
+            if parent:
+                if read(parent / "status.json")["phase"] != "complete":
+                    raise ValueError("the original study must be complete")
+                status("verify-sealed-inputs")
+                run_critics(work, parent, CLIP_METHODS, status)
+                status("complete", report=str(work / "report/index.html"))
+                return
             status("awaiting-sft-selection")
             while not (P2 / "selection.json").is_file():
                 if not wait:
@@ -96,9 +115,6 @@ def run(output, wait=False):
 
 
 def pipeline(work, status):
-    from openpi.e0.jobs import training_config
-    from openpi.e0.selection import critic
-
     selected = read(P2 / "selection.json")
     ckpt = Path(selected["checkpoint"])
     policy = content_id(read(ckpt / "e0-checkpoint.json"))
@@ -162,9 +178,60 @@ def pipeline(work, status):
         )
     pool = work / "pool"
     stage_dir(pool, "e0-manifest.json", lambda tmp: cmd("merge", "--sources", DEMOS, work / "train", "--output", tmp))
+    run_critics(work, work, METHODS, status)
+
+
+def audit_clip(parent, work, data, method):
+    original = method.removesuffix("_clip")
+    old_spec = read(parent / f"{original}-{MODES[0]}" / "training.json")
+    path = work / f"labels-{method}" / "protocol.json"
+    new_spec = dict(old_spec, reward_protocol=str(path), reward_protocol_id=read(path)["protocol_id"])
+    report = {}
+    for role, dataset in data.items():
+        old, _ = load_labels(old_spec, dataset, role)
+        new, scale = load_labels(new_spec, dataset, role)
+        if scale != 1:
+            raise ValueError("direct-clip training and prediction require a unit head scale")
+        np.testing.assert_array_equal(new[:, 0], old[:, 0])
+        np.testing.assert_array_equal(new[:, 2], old[:, 1])
+        np.testing.assert_array_equal(new[:, 1], np.clip(old[:, 1], -1, 0))
+        raw = new[:, 2]
+        clipped = raw < -1
+        offset, success_frames, success_episodes = 0, 0, 0
+        for ep in dataset["episodes"]:
+            n = ep["length"]
+            if ep["source"] == "demo" or ep["success"]:
+                changed = int(clipped[offset : offset + n].sum())
+                success_frames += changed
+                success_episodes += int(changed > 0)
+            offset += n
+        report[role] = dict(
+            frames=len(raw),
+            below=int(clipped.sum()),
+            equal=int((raw == -1).sum()),
+            clipped_success_frames=success_frames,
+            clipped_success_episodes=success_episodes,
+            single_step_rewards_match=True,
+        )
+    expected_review = (8175, 76, 2) if original == "task_pool_max" else (8029, 0, 0)
+    rev = report["review"]
+    if (report["train"]["frames"], report["train"]["below"], report["validation"]["below"]) != (411854, 9583, 7770) or (
+        rev["below"],
+        rev["clipped_success_frames"],
+        rev["clipped_success_episodes"],
+    ) != expected_review:
+        raise ValueError(f"unexpected clipping counts for the sealed seed-42 data: {report}")
+    return report
+
+
+def run_critics(work, source, methods, status):
+    from openpi.e0.jobs import training_config
+    from openpi.e0.selection import critic
+
+    pool = source / "pool"
     data = {
         k: load_dataset(p)
-        for k, p in (("train", pool), ("validation", work / "validation"), ("review", work / "review"))
+        for k, p in (("train", pool), ("validation", source / "validation"), ("review", source / "review"))
     }
     scales = fit_scales(data["train"])
     differences = difference_report(data["train"], scales)
@@ -175,10 +242,17 @@ def pipeline(work, status):
         if ep["source"] == "rollout"
     }
     write_json(work / "target-differences.json", differences)
-    jobs = []
-    for method in METHODS:
+    audit = {}
+    for method in methods:
         labels = work / ("labels-" + method)
         stage_dir(labels, "protocol.json", lambda tmp: save_labels(tmp, method, scales, data))
+        if method in CLIP_METHODS:
+            audit[method] = audit_clip(source, work, data, method)
+    if audit:
+        write_json(work / "clip-audit.json", audit)
+    jobs = []
+    for method in methods:
+        labels = work / ("labels-" + method)
         protocol = read(labels / "protocol.json")
         for mode in MODES:
             name = f"{method}-{mode}"
@@ -200,6 +274,13 @@ def pipeline(work, status):
             )
             write_json(base / "request.json", request)
             spec = training_config(base / "request.json", manifest)
+            if audit:
+                old = read(source / f"{method.removesuffix('_clip')}-{mode}" / "training.json")
+                varying = {"id", "run_dir", "manifest_id", "reward_protocol", "reward_protocol_id"}
+                if {k: v for k, v in spec.items() if k not in varying} != {
+                    k: v for k, v in old.items() if k not in varying
+                }:
+                    raise ValueError("paired critic training manifests differ outside reward and run identity")
             run_dir = Path(spec["run_dir"])
             status("train-" + name, manifest=str(manifest))
             if not (run_dir / "status.json").is_file() or not read(run_dir / "status.json")["complete"]:
@@ -217,7 +298,7 @@ def pipeline(work, status):
                         "--checkpoint",
                         run_dir / "candidates" / str(step),
                         "--data-dir",
-                        work / "validation",
+                        source / "validation",
                         "--output",
                         tmp,
                         gpu=0,
@@ -227,7 +308,7 @@ def pipeline(work, status):
             critic(manifest, paths, base / "selection.json")
             jobs.append((name, manifest, base, read(base / "selection.json")["checkpoint"]))
     for name, manifest, base, candidate in jobs:
-        for role, directory, flag in (("train", pool, "--autonomous-only"), ("review", work / "review", "--review")):
+        for role, directory, flag in (("train", pool, "--autonomous-only"), ("review", source / "review", "--review")):
             status(f"predict-{role}-{name}")
             stage_dir(
                 base / role,
@@ -248,4 +329,4 @@ def pipeline(work, status):
     status("paired-report")
     from openpi.e0.critic_report import report
 
-    stage_dir(work / "report", "index.html", lambda tmp: report(work, tmp))
+    stage_dir(work / "report", "index.html", lambda tmp: report(work, tmp, parent=source if audit else None))

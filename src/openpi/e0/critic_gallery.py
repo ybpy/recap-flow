@@ -46,7 +46,7 @@ def video(attempt, file):
     subprocess.run(args, input=np.concatenate([left, right], axis=2).tobytes(), check=True)
 
 
-def gallery(dest, names, attempts, frames, summary):
+def gallery(dest, names, attempts, frames, summary, prior_gallery=None):
     eligible = sorted(next(iter(frames.values())))
     fixed = []
     for task in range(10):
@@ -57,18 +57,28 @@ def gallery(dest, names, attempts, frames, summary):
                     :2
                 ]
             )
+    if prior_gallery and prior_gallery["fixed"] != fixed:
+        raise ValueError("the preregistered trajectory sample changed")
     scores = []
     for uid in eligible:
-        votes = np.stack([frames[n][uid]["positive"] for n in names]).sum(axis=0)
-        discord = votes * (len(names) - votes) / (len(names) * (len(names) - 1) / 2)
+        if prior_gallery:
+            from openpi.e0.clip_comparison import strict_pairs
+
+            discord = np.mean(
+                [frames[l][uid]["positive"] != frames[r][uid]["positive"] for l, r in strict_pairs()], axis=0
+            )
+        else:
+            votes = np.stack([frames[n][uid]["positive"] for n in names]).sum(axis=0)
+            discord = votes * (len(names) - votes) / (len(names) * (len(names) - 1) / 2)
         k = min(50, len(discord))
         windows = np.convolve(discord, np.ones(k) / k, mode="valid")
         start = int(np.argmax(windows))
         scores.append((float(windows[start]), uid, start))
     scores.sort(key=lambda row: (-row[0], row[1]))
-    divergent = scores[:10]
+    clip_cases = scores[:10] if prior_gallery else []
+    divergent = prior_gallery["disagreements"] if prior_gallery else scores[:10]
     links = {}
-    for i, uid in enumerate(dict.fromkeys(fixed + [r[1] for r in divergent])):
+    for i, uid in enumerate(dict.fromkeys(fixed + [r[1] for r in divergent + clip_cases])):
         row = attempts[uid]
         stem = f"trace-{i:03d}"
         video(row, dest / (stem + ".mp4"))
@@ -81,7 +91,17 @@ def gallery(dest, names, attempts, frames, summary):
             with np.load(dest / n / frames[n][uid]["path"], allow_pickle=False) as a:
                 curves[n] = {
                     k: (a[k].astype(int).tolist() if k == "positive" else a[k].tolist())
-                    for k in ("target", "value", "window_reward", "value_delta", "advantage", "positive", "threshold")
+                    for k in (
+                        "target",
+                        "return_before_clip",
+                        "head_target",
+                        "value",
+                        "window_reward",
+                        "value_delta",
+                        "advantage",
+                        "positive",
+                        "threshold",
+                    )
                 }
         payload = dict(
             uid=uid,
@@ -106,6 +126,13 @@ def gallery(dest, names, attempts, frames, summary):
         encoding="utf8",
     )
     coverage = Counter((attempts[u]["task_id"], attempts[u]["success"]) for u in fixed)
+    if prior_gallery:
+        (dest / "clip-disagreements.html").write_text(
+            "<meta charset=utf-8><h1>直接 clip 引起的分歧</h1><p>按连续 50 步中四个严格配对的平均标签翻转率排序。每条轨迹最多选一个窗口。</p><ol>"
+            + "".join(link(u, t) for _, u, t in clip_cases)
+            + '</ol><a href="comparison.html">配对统计</a>',
+            encoding="utf8",
+        )
     missing = [
         f"任务 {t} {'成功' if s else '失败'} {coverage[t,s]}/2"
         for t in range(10)
@@ -134,31 +161,44 @@ def gallery(dest, names, attempts, frames, summary):
         + "".join(link(u) for u in fixed)
         + "</ol>"
     )
+    if prior_gallery:
+        index = index.replace(
+            "</h1>",
+            '</h1><p><a href="comparison.html">四个严格配对、超时末帧和误差区间</a> · <a href="clip-disagreements.html">clip 分歧片段</a></p>',
+            1,
+        )
     (dest / "index.html").write_text(index, encoding="utf8")
     write_json(
-        dest / "gallery.json", dict(fixed=fixed, disagreements=divergent, links=links, coverage_shortfalls=missing)
+        dest / "gallery.json",
+        dict(
+            fixed=fixed,
+            disagreements=divergent,
+            clip_disagreements=clip_cases,
+            links=links,
+            coverage_shortfalls=missing,
+        ),
     )
 
 
 VIEW = """<!doctype html><meta charset=utf-8><title>轨迹评审</title><style>body{max-width:1150px;margin:1.2em auto;font:15px system-ui}video{width:520px;max-width:95%}canvas{width:100%;border:1px solid #ccc}label{margin-right:12px}pre{white-space:pre-wrap}</style>
 <a href="index.html">总表</a><h2 id="title"></h2><video id="v" controls muted preload="metadata"></video><p id="info"></p><input id="slide" type="range" min="0" style="width:95%"><p id="models"></p>
-<select id="field"><option value="value">预测 value 与目标（虚线）</option><option value="advantage">advantage 与阈值（虚线）</option><option value="window_reward">50 步奖励和</option><option value="value_delta">bootstrap value 变化</option><option value="positive">adv_ind · 六行标签</option></select>
+<select id="field"><option value="value">预测 V、监督目标（虚线）、截断前 G（点线）</option><option value="advantage">advantage 与阈值（虚线）</option><option value="head_target">实际送入 201 bins 的标签</option><option value="return_before_clip">截断前累计回报</option><option value="window_reward">50 步奖励和</option><option value="value_delta">bootstrap value 变化</option><option value="positive">adv_ind · 每模型一行</option></select>
 <canvas id="plot" width="1100" height="210"></canvas><pre id="details"></pre>
 <script>
-const P=__PAYLOAD__, names=Object.keys(P.data), colors=['#2166ac','#d65c13','#168052','#874da2','#b91e48','#5c632a'];
+const P=__PAYLOAD__, names=Object.keys(P.data), colors=['#2166ac','#d65c13','#168052','#874da2','#b91e48','#5c632a','#008893','#ab4e7d','#5356be','#556644'];
 const el=id=>document.getElementById(id), v=el('v'), slider=el('slide'), ctx=el('plot').getContext('2d');
 el('title').textContent=P.prompt+' · '+(P.success?'成功':'失败');v.src=P.video;slider.max=P.n-1;
 names.forEach((n,i)=>{const l=document.createElement('label'),b=document.createElement('input');b.type='checkbox';b.checked=true;b.onchange=draw;l.style.color=colors[i];l.append(b,document.createTextNode(n));el('models').append(l)});
 function draw(){const t=+slider.value,k=el('field').value; const ids=names.map((n,i)=>i).filter(i=>el('models').children[i].firstChild.checked);
 const X=i=>45+i*1045/Math.max(1,P.n-1);let lo=0,hi=0;const lines=[];
-ids.forEach(i=>{const d=P.data[names[i]];lines.push([i,d[k],false]);if(k==='value')lines.push([i,d.target,true]);if(k==='advantage')lines.push([i,Array(P.n).fill(d.threshold),true])});
+ids.forEach(i=>{const d=P.data[names[i]];lines.push([i,d[k],false]);if(k==='value')lines.push([i,d.target,1],[i,d.return_before_clip,2]);if(k==='advantage')lines.push([i,Array(P.n).fill(d.threshold),true])});
 lines.forEach(([,a])=>{lo=Math.min(lo,...a);hi=Math.max(hi,...a)});const Y=y=>180-170*(y-lo)/(hi-lo||1);
 ctx.clearRect(0,0,1100,210);ctx.fillStyle='#555';ctx.fillText(hi.toFixed(2),1,12);ctx.fillText(lo.toFixed(2),1,180);
 P.decisions.forEach(([s,e],j)=>{if(j%2===0){ctx.fillStyle='#f2f3f5';ctx.fillRect(X(s),0,X(Math.min(e,P.n-1))-X(s),184)}});
-lines.forEach(([i,a,dash])=>{ctx.strokeStyle=colors[i];ctx.fillStyle=colors[i];ctx.setLineDash(dash?[3,4]:[]);if(k==='positive'){a.forEach((z,j)=>{if(z)ctx.fillRect(X(j),12+i*28,Math.max(1,1045/P.n),14)});return}ctx.beginPath();a.forEach((z,j)=>j?ctx.lineTo(X(j),Y(z)):ctx.moveTo(X(j),Y(z)));ctx.stroke()});
+lines.forEach(([i,a,dash])=>{ctx.strokeStyle=colors[i];ctx.fillStyle=colors[i];ctx.setLineDash(dash===2?[1,4]:(dash?[5,3]:[]));if(k==='positive'){a.forEach((z,j)=>{if(z)ctx.fillRect(X(j),8+i*(170/names.length),Math.max(1,1045/P.n),Math.min(14,145/names.length))});return}ctx.beginPath();a.forEach((z,j)=>j?ctx.lineTo(X(j),Y(z)):ctx.moveTo(X(j),Y(z)));ctx.stroke()});
 ctx.setLineDash([]);ctx.strokeStyle='#222';ctx.beginPath();ctx.moveTo(X(t),0);ctx.lineTo(X(t),188);ctx.stroke();
 const seg=P.decisions.find(([s,e])=>s<=t && t<e);el('info').textContent=P.uid+' · 动作 '+t+' / '+(P.n-1)+' · 执行区间 '+JSON.stringify(seg);
-el('details').textContent=ids.map(i=>{const d=P.data[names[i]];return names[i]+'   目标 '+d.target[t].toFixed(3)+'   V '+d.value[t].toFixed(3)+'   A = '+d.window_reward[t].toFixed(3)+' + '+d.value_delta[t].toFixed(3)+' = '+d.advantage[t].toFixed(3)+'   阈值 '+d.threshold.toFixed(3)+'   '+(d.positive[t]?'positive':'negative')}).join('\\n')}
+el('details').textContent=ids.map(i=>{const d=P.data[names[i]];return names[i]+'   G '+d.return_before_clip[t].toFixed(3)+'   head 标签 '+d.head_target[t].toFixed(3)+'   监督目标（回报单位） '+d.target[t].toFixed(3)+'   V '+d.value[t].toFixed(3)+'   A = '+d.window_reward[t].toFixed(3)+' + '+d.value_delta[t].toFixed(3)+' = '+d.advantage[t].toFixed(3)+'   阈值 '+d.threshold.toFixed(3)+'   '+(d.positive[t]?'positive':'negative')}).join('\\n')}
 v.onloadedmetadata=()=>{v.currentTime=Math.min(P.n-1,Math.max(0,Number(location.hash.slice(1))||0))/10;draw()};
 v.ontimeupdate=()=>{slider.value=Math.min(P.n-1,Math.floor(v.currentTime*10+1e-5));draw()};slider.oninput=()=>{v.currentTime=+slider.value/10;draw()};el('field').onchange=draw;draw();
 </script>"""

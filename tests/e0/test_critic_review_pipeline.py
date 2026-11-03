@@ -8,7 +8,7 @@ import pytest
 from openpi_client.e0.artifacts import content_id, write_json
 
 from openpi.e0.critic_report import read_thresholds, report
-from openpi.e0.reward_study import METHODS, MODES, fit_scales, save_labels
+from openpi.e0.reward_study import CLIP_METHODS, METHODS, MODES, fit_scales, save_labels
 
 
 def test_review_report_and_role_binding(tmp_path):
@@ -52,11 +52,13 @@ def test_review_report_and_role_binding(tmp_path):
             ),
         )
     write_json(tmp_path / "target-differences.json", {})
-    for method in METHODS:
-        labels = tmp_path / ("labels-" + method)
+    supplement = tmp_path / "supplement"
+    for method in METHODS + CLIP_METHODS:
+        work = supplement if method in CLIP_METHODS else tmp_path
+        labels = work / ("labels-" + method)
         rec = save_labels(labels, method, fit_scales(data["train"]), data)
         for mode in MODES:
-            base = tmp_path / (method + "-" + mode)
+            base = work / (method + "-" + mode)
             spec = dict(
                 reward_protocol=str(labels / "protocol.json"),
                 reward_protocol_id=rec["protocol_id"],
@@ -94,9 +96,16 @@ def test_review_report_and_role_binding(tmp_path):
     assert len(summary["models"]) == 6 and len(summary["pairs"]) == 9
     assert len(list(dest.glob("*.mp4"))) == 2
     assert (dest / "index.html").exists() and (dest / "disagreements.html").exists()
+    write_json(supplement / "target-differences.json", {})
+    combined = supplement / "report"
+    report(supplement, combined, parent=tmp_path)
+    summary = json.loads((combined / "study.json").read_text())
+    assert len(summary["models"]) == 10 and len(summary["pairs"]) == 25
+    assert len(json.loads((combined / "common-reference.json").read_text())) == 4
+    assert (combined / "clip-disagreements.html").is_file()
     with pytest.raises(ValueError, match="threshold binding"):
         read_thresholds(
-            dest / base.name / "thresholds.json", spec, "different-checkpoint", data["train"]["dataset_id"]
+            combined / base.name / "thresholds.json", spec, "different-checkpoint", data["train"]["dataset_id"]
         )
     trace = (dest / "trace-000.html").read_text()
     assert "__PAYLOAD__" not in trace and "window_reward" in trace
@@ -105,4 +114,4 @@ def test_review_report_and_role_binding(tmp_path):
     pred["reward_protocol_id"] = "wrong"
     write_json(path, pred)
     with pytest.raises(ValueError, match="wrong predictions"):
-        report(tmp_path, tmp_path / "bad")
+        report(supplement, tmp_path / "bad", parent=tmp_path)
