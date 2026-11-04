@@ -107,6 +107,9 @@ def read_manifest(path):
                 or protocol["scales"]["train_dataset_id"] != spec["dataset_id"]):
             raise ValueError("critic task bound to a different supervision protocol")
     if spec["kind"] == "actor":
+        from openpi.e0.actor_labels import validate_label_binding
+
+        validate_label_binding(spec["data_dir"], dataset)
         for name in ("initialization", "initial_params", "norm_assets"):
             if name not in spec:
                 raise ValueError(f"actor requires explicit {name}")

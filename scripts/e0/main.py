@@ -73,6 +73,12 @@ def main():
     p.add_argument("--source", required=True)
     p.add_argument("--predictions", required=True)
     p.add_argument("--output", required=True)
+    p.add_argument("--critic-manifest")
+    p.add_argument("--thresholds")
+    p = sub.add_parser("actor-compare")
+    p.add_argument("--critic-study", default="/mnt/recap-flow-runtime/critic-study/s42-clip-v1")
+    p.add_argument("--output", default="/mnt/recap-flow-runtime/actor-study/s42-bc-clip-v1")
+    p.add_argument("--prepare-only", action="store_true")
     p = sub.add_parser("report")
     p.add_argument("--manifest", required=True)
     p.add_argument("--results", required=True)
@@ -162,6 +168,11 @@ def main():
     p.add_argument("--timeout", type=int, default=120)
     args = vars(parser.parse_args())
     command = args.pop("command")
+    if command == "actor-compare":
+        from openpi.e0.actor_study import run
+
+        run(**args)
+        return
     if command == "critic-study":
         from openpi.e0.critic_study import run
 

@@ -313,6 +313,10 @@ def run(manifest_path, *, resume=False, stop_after=None):
     ends = np.cumsum([e["length"] for e in dataset_manifest["episodes"]])
     episode_tasks = np.asarray([e["task_index"] for e in dataset_manifest["episodes"]])
     episode_rollout = np.asarray([e["source"] == "rollout" for e in dataset_manifest["episodes"]])
+    positive_labels = None
+    if spec["kind"] == "actor" and dataset_manifest.get("reward_protocol_id"):
+        with np.load(Path(spec["data_dir"]) / "advantage-diagnostics.npz", allow_pickle=False) as labels:
+            positive_labels = labels["positive"]
     t0 = time.monotonic()
     session_id = __import__("uuid").uuid4().hex
     loader = batches(dataset, stream, spec["batch_size"], start, end, spec["num_workers"])
@@ -338,6 +342,16 @@ def run(manifest_path, *, resume=False, stop_after=None):
             "global_batch": spec["batch_size"],
             "gpu_count": jax.device_count(),
         }
+        if positive_labels is not None:
+            flags = positive_labels[sampled_frames]
+            exposure.update(
+                positive_frames=int(flags.sum()),
+                negative_frames=int((~flags).sum()),
+                positive_rollout_frames=int((flags & episode_rollout[sampled_episodes]).sum()),
+            )
+            exposure["observation_action_sha256"] = hashlib_batch({
+                k: v for k, v in raw.items() if k not in ("tokenized_prompt", "tokenized_prompt_mask")
+            })
         with metrics_path.open("a") as f:
             f.write(
                 json.dumps(

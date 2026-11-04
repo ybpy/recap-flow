@@ -208,7 +208,13 @@ def merge(sources, output):
     write_json(output / "e0-manifest.json", result)
 
 
-def relabel(source, predictions, output):
+def relabel(source, predictions, output, critic_manifest=None, thresholds=None):
+    if critic_manifest or thresholds:
+        if not critic_manifest or not thresholds:
+            raise ValueError("study labels require both critic manifest and frozen thresholds")
+        from openpi.e0.actor_labels import relabel_study
+
+        return relabel_study(source, predictions, output, critic_manifest, thresholds)
     source, predictions, output = map(Path, (source, predictions, output))
     if output.exists():
         raise FileExistsError(output)
