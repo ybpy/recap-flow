@@ -161,3 +161,26 @@ def validate_label_binding(directory, manifest):
         or sha256_file(path / "advantage-diagnostics.npz") != manifest["diagnostics_sha256"]
     ):
         raise ValueError("actor dataset/critic/threshold binding differs")
+
+
+def validate_demo_payload(directory, dataset, baseline_directory, baseline):
+    """Label changes may change Parquet hashes; every other demo field must match."""
+    demos = [e for e in dataset["episodes"] if e["source"] == "demo"]
+    originals = {e["episode_uid"]: e for e in baseline["episodes"]}
+    if len(demos) != len(originals) or {e["episode_uid"] for e in demos} != set(originals):
+        raise ValueError("labeled training pool changed demo membership")
+    for episode in demos:
+        original = originals[episode["episode_uid"]]
+        source = Path(baseline_directory) / original["path"]
+        target = Path(directory) / episode["path"]
+        if (
+            episode["length"] != original["length"]
+            or sha256_file(source) != original["sha256"]
+            or sha256_file(target) != episode["sha256"]
+        ):
+            raise ValueError("labeled demo length or file checksum differs")
+        before, after = [pq.read_table(p).drop(["reward_label", "value_label", "adv_ind"]) for p in (source, target)]
+        if not before.equals(after, check_metadata=True):
+            raise ValueError("labeled demo changed content beyond supervision")
+        if pq.read_table(target, columns=["adv_ind"])["adv_ind"].to_pylist() != ["positive"] * episode["length"]:
+            raise ValueError("demo condition must be positive")

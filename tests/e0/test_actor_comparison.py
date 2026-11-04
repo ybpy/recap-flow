@@ -7,7 +7,7 @@ import pyarrow.parquet as pq
 import pytest
 from openpi_client.e0.artifacts import content_id, sha256_file, write_json, write_jsonl
 
-from openpi.e0.actor_labels import relabel_study, validate_label_binding
+from openpi.e0.actor_labels import relabel_study, validate_demo_payload, validate_label_binding
 from openpi.e0.actor_report import interval
 from openpi.e0.critic_report import parts
 from openpi.e0.reward_study import fit_scales, save_labels
@@ -113,6 +113,9 @@ def test_actor_snapshot_uses_bound_reward_and_preserves_inputs(tmp_path, study_i
     relabel_study(source, pred, output, manifest, thresholds)
     metadata = json.loads((output / "e0-manifest.json").read_text())
     validate_label_binding(output, metadata)
+    baseline = json.loads((source / "e0-manifest.json").read_text())
+    baseline["episodes"] = [e for e in baseline["episodes"] if e["source"] == "demo"]
+    validate_demo_payload(output, metadata, source, baseline)
     for i in range(2):
         old = pq.read_table(source / f"episode-{i}.parquet")
         new = pq.read_table(output / f"episode-{i}.parquet")
@@ -132,6 +135,13 @@ def test_actor_snapshot_uses_bound_reward_and_preserves_inputs(tmp_path, study_i
     write_json(output / "thresholds.json", wrong)
     with pytest.raises(ValueError, match="binding differs"):
         validate_label_binding(output, metadata)
+    path = output / "episode-0.parquet"
+    table = pq.read_table(path)
+    table = table.set_column(0, table.schema.field(0), pa.array([b"changed"] * len(table)))
+    pq.write_table(table, path)
+    metadata["episodes"][0]["sha256"] = sha256_file(path)
+    with pytest.raises(ValueError, match="beyond supervision"):
+        validate_demo_payload(output, metadata, source, baseline)
 
 
 @pytest.mark.parametrize("kind", ["role", "protocol", "checkpoint", "missing", "threshold"])

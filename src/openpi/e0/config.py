@@ -194,6 +194,11 @@ def validate_lineage(spec, dataset):
     baseline = json.loads(Path("/mnt/recap-flow-runtime/datasets/sft-v1/e0-manifest.json").read_text())
     expected = {(e["episode_uid"], e["length"], e["sha256"]) for e in baseline["episodes"]}
     actual = {(e["episode_uid"], e["length"], e["sha256"]) for e in sources if e["source"] == "demo"}
+    if actual != expected and dataset.get("reward_protocol_id"):
+        from openpi.e0.actor_labels import validate_demo_payload
+
+        validate_demo_payload(spec["data_dir"], dataset, "/mnt/recap-flow-runtime/datasets/sft-v1", baseline)
+        actual = expected
     if actual != expected or sum(e["source"] == "demo" for e in sources) != len(expected):
         raise ValueError("E0 must retain every audited demo, unchanged, in every training pool")
     if not spec["smoke"] and any(e.get("smoke", False) for e in sources):
