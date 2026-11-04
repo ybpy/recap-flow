@@ -233,3 +233,4 @@ def test_complete_actor_report_selects_paired_winner(tmp_path, monkeypatch):
     assert output["pairs"]["B-C"]["only_right"] == 0
     assert output["decision"].startswith("B ")
     assert (tmp_path / "report/index.html").is_file()
+    assert (tmp_path / "report/success-curves.png").stat().st_size > 1000

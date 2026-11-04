@@ -128,6 +128,7 @@ def prepare(work, study, status):
             id=f"smoke-actor-bc-clip-{variant}",
             smoke=True,
             num_train_steps=20,
+            warmup_steps=10,
             checkpoint_interval=20,
             checkpoint_updates=[20],
         )
@@ -198,6 +199,7 @@ def smoke(work, status):
         dict(
             passed=True,
             updates_per_variant=20,
+            warmup_steps=10,
             batch=256,
             fsdp_devices=4,
             initial_states_equal=True,

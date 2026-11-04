@@ -140,6 +140,40 @@ def report(work, dest):
         ):
             raise ValueError("paired actor RNG, sampling or observations/actions differ")
     write_json(dest / "training-audit.json", dict(updates_per_model=60000, paired_inputs_equal=True, models=training))
+    import matplotlib
+
+    matplotlib.use("Agg")
+    from matplotlib import pyplot as plt
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4), constrained_layout=True)
+    for name in ("B", "C"):
+        candidates = selections[name]["candidates"]
+        axes[0].plot(
+            [c["updates"] / 1000 for c in candidates],
+            [100 * c["macro_success"] for c in candidates],
+            marker="o",
+            label=name + "-clip",
+        )
+    axes[0].set(xlabel="Actor updates (thousands)", ylabel="Task-macro success (%)", title="Development selection")
+    axes[0].set_xticks([30, 45, 60])
+    axes[0].legend()
+    for i, (name, values) in enumerate(models.items()):
+        mean = values["macro_success"]
+        low, high = values["cluster_interval"]["ci95"]
+        axes[1].errorbar(
+            i,
+            100 * mean,
+            yerr=[[100 * max(0, mean - low)], [100 * max(0, high - mean)]],
+            fmt="o",
+            capsize=5,
+            color=f"C{i}",
+        )
+    axes[1].set_xticks(range(3), list(models))
+    axes[1].set(ylabel="Task-macro success (%)", title="Independent confirmation (95% CI)")
+    for axis in axes:
+        axis.grid(alpha=0.25)
+    fig.savefig(dest / "success-curves.png", dpi=160)
+    plt.close(fig)
     cases, media = [], {}
     for left, right in PAIRS:
         for tag, a, b in (("左成功右失败", True, False), ("右成功左失败", False, True), ("双方失败", False, False)):
@@ -203,7 +237,7 @@ def report(work, dest):
                 for t in range(10)
             ],
         ),
-        "<h2>共同预算下的开发结果</h2>",
+        '<h2>共同预算下的开发结果</h2><img src="success-curves.png" alt="Development and confirmation success rates" style="width:100%">',
         table(
             ["更新数", "B", "C"],
             [
@@ -226,13 +260,14 @@ def report(work, dest):
             + html.escape(case["pair"] + " · " + case["outcome"])
             + "</h3><p>"
             + html.escape(case["episode_uid"])
-            + "</p>"
+            + '</p><div style="display:flex;gap:12px">'
         )
         for name, filename in case["videos"]:
             page.append(
-                f'<p>{name}</p><video src="{filename}" controls muted preload="metadata"></video>'
+                f'<figure style="width:49%;margin:0"><figcaption>{name}</figcaption><video style="width:100%" src="{filename}" controls muted preload="metadata"></video></figure>'
                 if filename
                 else f"<p>{name} 无合法动作视频，详见 episode 记录。</p>"
             )
+        page.append("</div>")
     page.append("<p>本轮包含一个训练种子和三组评测种子。结果用于筛选后续方案，跨训练种子的复现由后续实验检验。</p>")
     (dest / "index.html").write_text("".join(page), encoding="utf8")
