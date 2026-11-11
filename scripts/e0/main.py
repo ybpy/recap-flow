@@ -75,6 +75,8 @@ def main():
     p.add_argument("--output", required=True)
     p.add_argument("--critic-manifest")
     p.add_argument("--thresholds")
+    p = sub.add_parser("actor-confirm")
+    p.add_argument("--output", required=True)
     p = sub.add_parser("actor-compare")
     p.add_argument("--critic-study", default="/mnt/recap-flow-runtime/critic-study/s42-clip-v1")
     p.add_argument("--output", default="/mnt/recap-flow-runtime/actor-study/s42-bc-clip-v1")
@@ -168,6 +170,11 @@ def main():
     p.add_argument("--timeout", type=int, default=120)
     args = vars(parser.parse_args())
     command = args.pop("command")
+    if command == "actor-confirm":
+        from openpi.e0.actor_confirmation import run
+
+        run(**args)
+        return
     if command == "actor-compare":
         from openpi.e0.actor_study import run
 

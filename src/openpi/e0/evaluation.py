@@ -32,6 +32,25 @@ def _stop(process):
         process.wait()
 
 
+def validate_episode_manifest(spec, rows):
+    if not rows or any(r["training_seed"] != spec["seed"] for r in rows):
+        raise ValueError("episode manifest belongs to a different training seed")
+    if not spec["smoke"]:
+        purposes = {r["purpose"] for r in rows}
+        if len(purposes) != 1:
+            raise ValueError("mixed episode purposes")
+        purpose = next(iter(purposes))
+        suites = SUITES if purpose == "development" and spec["stage"] == "sft" else ["libero_10"]
+        groups = [0, 1, 2] if purpose == "final" else [0]
+        if purpose == "review":
+            groups = sorted({r["group"] for r in rows})
+            if groups not in ([0], [0, 1, 2]):
+                raise ValueError("review requires one or three complete seed groups")
+        if purpose not in ("development", "final", "rollout", "review"):
+            raise ValueError("non-smoke episode purpose required")
+        validate_grid(rows, suites, groups, purpose)
+
+
 def evaluate(
     actor_manifest,
     checkpoint,
@@ -48,18 +67,7 @@ def evaluate(
     if spec["kind"] != "actor":
         raise ValueError("evaluation requires an actor manifest")
     rows = read_jsonl(episode_manifest)
-    if not rows or any(r["training_seed"] != spec["seed"] for r in rows):
-        raise ValueError("episode manifest belongs to a different training seed")
-    if not spec["smoke"]:
-        purposes = {r["purpose"] for r in rows}
-        if len(purposes) != 1:
-            raise ValueError("mixed episode purposes")
-        purpose = next(iter(purposes))
-        suites = SUITES if purpose == "development" and spec["stage"] == "sft" else ["libero_10"]
-        groups = [0, 1, 2] if purpose == "final" else [0]
-        if purpose not in ("development", "final", "rollout", "review"):
-            raise ValueError("non-smoke episode purpose required")
-        validate_grid(rows, suites, groups, purpose)
+    validate_episode_manifest(spec, rows)
     devices = list(map(int, devices))
     if not devices or len(set(devices)) != len(devices) or min(devices) < 0 or workers_per_device < 1:
         raise ValueError("invalid GPU/worker partition")
