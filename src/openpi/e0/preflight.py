@@ -8,7 +8,7 @@ from openpi_client.e0.artifacts import sha256_file
 from openpi_client.e0.artifacts import write_json
 
 
-def train_environment(output):
+def train_environment(output, debug_gpu_count=None):
     import jax
     import torch
 
@@ -20,7 +20,9 @@ def train_environment(output):
     from openpi.e0.platform import validate_devices
     import os
     validate_devices(os.environ["E0_PLATFORM"], [d.device_kind for d in devices],
-                     process_count=jax.process_count(), training=True)
+                     process_count=jax.process_count(), training=debug_gpu_count is None)
+    if debug_gpu_count is not None and (debug_gpu_count not in (1, 2, 4) or len(devices) != debug_gpu_count):
+        raise ValueError("debug preflight GPU count differs")
     gpu_results = []
     for device in devices:
         import numpy as np
@@ -75,6 +77,7 @@ def train_environment(output):
         raise RuntimeError(f"imports escape the owned project/environment: {paths}")
     result = {
         "complete": True,
+        "smoke": debug_gpu_count is not None,
         "python": sys.version,
         "executable": sys.executable,
         "real_interpreter": str(Path(sys.executable).resolve()),

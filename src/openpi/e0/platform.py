@@ -27,6 +27,15 @@ def validate_training(spec, jax):
         raise ValueError("pilot/formal training requires an explicitly supported eight-GPU platform")
     if platform != os.environ.get("E0_PLATFORM"):
         raise ValueError("manifest platform and E0_PLATFORM differ")
+    debug_count = spec.get("debug_gpu_count")
+    if debug_count is not None:
+        if not spec["smoke"] or debug_count not in (1, 2, 4):
+            raise ValueError("debug GPU override requires smoke=True and an explicit supported count")
+        validate_devices(platform, [d.device_kind for d in jax.devices()],
+                         process_count=jax.process_count(), training=False)
+        if len(jax.devices()) != debug_count or debug_count % spec["fsdp_devices"]:
+            raise ValueError("debug GPU count/sharding differs from the smoke manifest")
+        return
     validate_devices(platform, [d.device_kind for d in jax.devices()],
                      process_count=jax.process_count(), training=True)
     if platform == "pro5000" and spec["fsdp_devices"] != (4 if spec["kind"] == "actor" else 1):

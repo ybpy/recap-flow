@@ -12,18 +12,47 @@ import numpy as np
 from openpi_client.e0.protocol import stable_seed
 
 
+RECIPES = {
+    "e0_75_25_pooled_v1": dict(name="e0_75_25_pooled_v1", long_probability=0.75,
+                                task_sampling="uniform", source_sampling="pooled_frames"),
+    "long_pooled_v1": dict(name="long_pooled_v1", long_probability=1.0,
+                            task_sampling="uniform", source_sampling="pooled_frames"),
+    "long_demo70_rollout30_v1": dict(name="long_demo70_rollout30_v1", long_probability=1.0,
+                                     task_sampling="uniform", source_sampling="demo_rollout",
+                                     demo_probability=0.7),
+}
+
+
+def validate_recipe(recipe, mode):
+    if recipe is None:
+        return None
+    if mode != "recap" or not isinstance(recipe, dict) or recipe.get("name") not in RECIPES:
+        raise ValueError("unknown sampling recipe, or recipe used outside RECAP")
+    if recipe != RECIPES[recipe["name"]]:
+        raise ValueError("sampling recipe parameters differ from its versioned definition")
+    return dict(recipe)
+
+
 class FrameStream:
-    def __init__(self, lengths, task_ids, long_tasks, seed, mode):
+    def __init__(self, lengths, task_ids, long_tasks, seed, mode, *, recipe=None, sources=None):
         self.lengths = np.asarray(lengths, dtype=np.int64)
+        if not len(self.lengths) or np.any(self.lengths <= 0):
+            raise ValueError("sampling requires nonempty, positive episode lengths")
         self.ends = np.cumsum(self.lengths)
         self.seed, self.mode = seed, mode
+        self.recipe = validate_recipe(recipe, mode)
         self.total = int(self.ends[-1])
         if mode not in ("sft", "recap"):
             raise ValueError(mode)
         by_task = defaultdict(list)
+        by_source = defaultdict(list)
+        if sources is not None and len(sources) != len(lengths):
+            raise ValueError("episode sources and lengths differ")
         offset = 0
-        for length, task in zip(lengths, task_ids, strict=True):
+        for index, (length, task) in enumerate(zip(lengths, task_ids, strict=True)):
             by_task[int(task)].append((offset, int(length)))
+            if sources is not None:
+                by_source[(int(task), sources[index])].append((offset, int(length)))
             offset += int(length)
         self.tasks = {}
         for task, spans in by_task.items():
@@ -32,6 +61,16 @@ class FrameStream:
         self.other = sorted(set(self.tasks) - set(self.long))
         if mode == "recap" and (len(self.long) != 10 or len(self.other) != 30):
             raise ValueError("RECAP requires all 10 Long and 30 other tasks")
+        if not set(self.long) <= set(self.tasks):
+            raise ValueError("Long task mapping references absent tasks")
+        self.source_tasks = {key: (spans, np.cumsum([n for _, n in spans]))
+                             for key, spans in by_source.items()}
+        if self.recipe and self.recipe["source_sampling"] == "demo_rollout":
+            if sources is None or any((task, source) not in self.source_tasks
+                                      for task in self.long for source in ("demo", "rollout")):
+                raise ValueError("70/30 requires demo and rollout frames in every Long task")
+            if any(task in self.long and source not in ("demo", "rollout") for task, source in by_source):
+                raise ValueError("70/30 Long pool must contain only demo and rollout")
         self._epoch, self._permutation = None, None
 
     def frame(self, draw):
@@ -44,19 +83,24 @@ class FrameStream:
                 self._epoch = epoch
             return int(self._permutation[position])
         rng = np.random.default_rng(stable_seed(self.seed, "frame", int(draw)))
-        group = self.long if rng.random() < 0.75 else self.other
+        probability = self.recipe["long_probability"] if self.recipe else 0.75
+        group = self.long if rng.random() < probability else self.other
         task = group[int(rng.integers(len(group)))]
         spans, ends = self.tasks[task]
+        if self.recipe and self.recipe["source_sampling"] == "demo_rollout":
+            source_rng = np.random.default_rng(stable_seed(self.seed, "source", int(draw)))
+            source = "demo" if source_rng.random() < self.recipe["demo_probability"] else "rollout"
+            spans, ends = self.source_tasks[(task, source)]
         within = int(rng.integers(ends[-1]))
         episode = int(np.searchsorted(ends, within, side="right"))
         prior = 0 if episode == 0 else ends[episode - 1]
         return int(spans[episode][0] + within - prior)
 
     @classmethod
-    def from_manifest(cls, path, seed, mode):
+    def from_manifest(cls, path, seed, mode, *, recipe=None):
         manifest = json.loads(Path(path).read_text())
         episodes = manifest["episodes"]
-        if any(e["source"] in ("development", "final") for e in episodes):
+        if any(e["source"] not in ("demo", "rollout", "intervention") for e in episodes):
             raise ValueError("evaluation trajectories cannot enter a training sampler")
         return cls(
             [e["length"] for e in episodes],
@@ -64,6 +108,8 @@ class FrameStream:
             manifest["long_task_indices"],
             seed,
             mode,
+            recipe=recipe,
+            sources=[e["source"] for e in episodes],
         )
 
 

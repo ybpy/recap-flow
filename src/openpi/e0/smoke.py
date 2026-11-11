@@ -48,6 +48,7 @@ def train(path, env, log):
 def verify_recovery(control, path, env, log):
     reference = json.loads(Path(control).read_text())
     recovered = dict(reference, id=reference["id"] + "-recovery", run_dir=reference["run_dir"] + "-recovery")
+    recovered.pop("manifest_id", None)
     write_json(path, recovered)
     if not completed(recovered["run_dir"]):
         run = Path(recovered["run_dir"])

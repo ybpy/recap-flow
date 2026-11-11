@@ -42,6 +42,15 @@ def read_manifest(path):
             raise ValueError("R1 critic must be shared")
     elif branch not in ("base_reset", "warm_start"):
         raise ValueError("RECAP actor/R2 critic requires an explicit branch")
+    if "sampling_recipe" in spec:
+        from openpi.e0.sampling import validate_recipe
+
+        validate_recipe(spec["sampling_recipe"], "sft" if spec["stage"] == "sft" else "recap")
+        if spec["kind"] != "actor" or spec["stage"] != "r1":
+            raise ValueError("recipe study is restricted to R1 actors")
+    if "debug_gpu_count" in spec:
+        if not spec["smoke"] or spec["debug_gpu_count"] not in (1, 2, 4):
+            raise ValueError("debug GPU overrides require an explicitly marked smoke run")
     for key in ("batch_size", "num_train_steps", "warmup_steps", "fsdp_devices", "checkpoint_interval"):
         if type(spec[key]) is not int or spec[key] < 1:
             raise ValueError(f"invalid {key}")
@@ -93,6 +102,10 @@ def read_manifest(path):
     if not data_path.is_file():
         raise FileNotFoundError(f"audited dataset manifest not ready: {data_path}")
     dataset = json.loads(data_path.read_text())
+    if spec.get("sampling_recipe"):
+        from openpi.e0.sampling import FrameStream
+
+        FrameStream.from_manifest(data_path, spec["seed"], "recap", recipe=spec["sampling_recipe"])
     if dataset["dataset_id"] != content_id({k: v for k, v in dataset.items() if k != "dataset_id"}):
         raise ValueError("dataset manifest content ID mismatch")
     if spec.get("dataset_id", dataset["dataset_id"]) != dataset["dataset_id"]:

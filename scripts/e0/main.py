@@ -77,6 +77,14 @@ def main():
     p.add_argument("--thresholds")
     p = sub.add_parser("actor-confirm")
     p.add_argument("--output", required=True)
+    for name in ("recipe-prepare", "recipe-confirm"):
+        p = sub.add_parser(name)
+        p.add_argument("--output", default="/mnt/recap-flow-runtime/actor-study/s42-long-recipes-v1")
+    p = sub.add_parser("recipe-task")
+    p.add_argument("--output", default="/mnt/recap-flow-runtime/actor-study/s42-long-recipes-v1")
+    p.add_argument("--variant", choices=["long-pooled", "long-demo70"], required=True)
+    p.add_argument("--phase", choices=["smoke", "train-dev", "evaluate"], default="train-dev")
+    p.add_argument("--gpu-count", type=int, choices=[2, 8], default=8)
     p = sub.add_parser("actor-compare")
     p.add_argument("--critic-study", default="/mnt/recap-flow-runtime/critic-study/s42-clip-v1")
     p.add_argument("--output", default="/mnt/recap-flow-runtime/actor-study/s42-bc-clip-v1")
@@ -87,6 +95,7 @@ def main():
     p.add_argument("--output", required=True)
     p = sub.add_parser("preflight")
     p.add_argument("--output", default="/mnt/recap-flow-runtime/reports/preflight-train.json")
+    p.add_argument("--debug-gpu-count", type=int, choices=[1, 2, 4])
     p = sub.add_parser("egl")
     p.add_argument("--output", default="/mnt/recap-flow-runtime/reports/preflight-egl.json")
     p = sub.add_parser("curves")
@@ -170,6 +179,10 @@ def main():
     p.add_argument("--timeout", type=int, default=120)
     args = vars(parser.parse_args())
     command = args.pop("command")
+    if command in ("recipe-prepare", "recipe-task", "recipe-confirm"):
+        from openpi.e0 import recipe_study
+        getattr(recipe_study, command.removeprefix("recipe-"))(**args)
+        return
     if command == "actor-confirm":
         from openpi.e0.actor_confirmation import run
 

@@ -285,7 +285,8 @@ def run(manifest_path, *, resume=False, stop_after=None):
         labels, scale = load_labels(spec, dataset_manifest, "train")
         dataset = ValueDataset(dataset, labels, scale)
     stream = FrameStream.from_manifest(
-        spec["dataset_manifest"], spec["seed"], "sft" if spec["stage"] == "sft" else "recap"
+        spec["dataset_manifest"], spec["seed"], "sft" if spec["stage"] == "sft" else "recap",
+        recipe=spec.get("sampling_recipe"),
     )
     if len(dataset) != stream.total:
         raise ValueError("manifest and LeRobot frame count differ")
@@ -342,6 +343,12 @@ def run(manifest_path, *, resume=False, stop_after=None):
             "global_batch": spec["batch_size"],
             "gpu_count": jax.device_count(),
         }
+        if spec.get("sampling_recipe"):
+            exposure["sampling_recipe"] = spec["sampling_recipe"]["name"]
+            exposure["demo_task_frame_counts"] = np.bincount(
+                episode_tasks[sampled_episodes][~episode_rollout[sampled_episodes]], minlength=40).tolist()
+            exposure["rollout_task_frame_counts"] = np.bincount(
+                episode_tasks[sampled_episodes][episode_rollout[sampled_episodes]], minlength=40).tolist()
         if positive_labels is not None:
             flags = positive_labels[sampled_frames]
             exposure.update(
@@ -349,6 +356,11 @@ def run(manifest_path, *, resume=False, stop_after=None):
                 negative_frames=int((~flags).sum()),
                 positive_rollout_frames=int((flags & episode_rollout[sampled_episodes]).sum()),
             )
+            if spec.get("sampling_recipe"):
+                exposure["positive_task_frame_counts"] = np.bincount(
+                    episode_tasks[sampled_episodes][flags], minlength=40).tolist()
+                exposure["positive_rollout_task_frame_counts"] = np.bincount(
+                    episode_tasks[sampled_episodes][flags & episode_rollout[sampled_episodes]], minlength=40).tolist()
             exposure["observation_action_sha256"] = hashlib_batch({
                 k: v for k, v in raw.items() if k not in ("tokenized_prompt", "tokenized_prompt_mask")
             })
